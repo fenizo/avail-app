@@ -7,7 +7,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object NetworkModule {
-    private const val BASE_URL = "http://72.62.193.110:8085/" // Direct IP to avoid DNS issues
+    private const val BASE_URL = "https://staging.maduraielectriciansandplumbers.com/"
 
     private var authToken: String? = null
 
