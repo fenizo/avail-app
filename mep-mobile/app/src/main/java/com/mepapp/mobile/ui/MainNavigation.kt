@@ -7,6 +7,7 @@ fun MainNavigation() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val authRepository = remember { com.mepapp.mobile.data.AuthRepository(context) }
     val tokenState = authRepository.authToken.collectAsState(initial = null)
+    val userIdState = authRepository.userId.collectAsState(initial = null)
     
     var currentScreen by remember { mutableStateOf("login") }
     var selectedJobId by remember { mutableStateOf("") }
@@ -24,10 +25,13 @@ fun MainNavigation() {
         "login" -> LoginScreen(authRepository, onLoginSuccess = {
             currentScreen = "list"
         })
-        "list" -> JobListScreen(onJobClick = { id ->
-            selectedJobId = id
-            currentScreen = "details"
-        })
+        "list" -> JobListScreen(
+            userId = userIdState.value,
+            onJobClick = { id ->
+                selectedJobId = id
+                currentScreen = "details"
+            }
+        )
         "details" -> JobDetailScreen(jobId = selectedJobId, onBack = {
             currentScreen = "list"
         })

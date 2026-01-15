@@ -14,8 +14,15 @@ jobs:
           username: ${{ secrets.BACKEND_SERVER_USER }}
           password: ${{ secrets.BACKEND_SERVER_PASSWORD }}
           script: |
-            echo "--- App Log Content ---"
-            cat ~/apps/mep-backend/mep-backend/app.log || echo "app.log not found"
+            echo "--- App Log Content (Recent) ---"
+            tail -n 100 ~/apps/mep-backend/mep-backend/app.log || echo "app.log not found"
+            
+            echo "--- Call Log Sync Check ---"
+            grep "CallLogController" ~/apps/mep-backend/mep-backend/app.log | tail -n 20 || echo "No sync logs found"
+            
+            echo "--- DB Count Check ---"
+            # We can't easily run SQL query without mysql client but we can check the log for hibernate inserts if debug is on
+            # Or just rely on the grep above
             
             echo "--- Process Check ---"
             ps -ef | grep java | grep -v grep

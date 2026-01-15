@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun JobListScreen(onJobClick: (String) -> Unit) {
+fun JobListScreen(userId: String?, onJobClick: (String) -> Unit) {
     var jobs by remember { mutableStateOf<List<JobResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -29,14 +29,18 @@ fun JobListScreen(onJobClick: (String) -> Unit) {
     // Explicitly typed to ensure compiler finds it
     val apiService = remember { NetworkModule.createService<MepApiService>() }
 
-    LaunchedEffect(Unit) {
-        try {
-            // Replace "STAFF_ID" with actual ID from AuthRepository
-            jobs = apiService.getJobs("STAFF_ID")
-            isLoading = false
-        } catch (e: Exception) {
-            errorMessage = "Failed to load jobs: ${e.message}"
-            isLoading = false
+    LaunchedEffect(userId) {
+        if (userId != null) {
+            try {
+                jobs = apiService.getJobs(userId)
+                isLoading = false
+            } catch (e: Exception) {
+                errorMessage = "Failed to load jobs: ${e.message}"
+                isLoading = false
+            }
+        } else {
+            // Wait for userId or show error if null persists
+            // isLoading remains true until userId available
         }
     }
 

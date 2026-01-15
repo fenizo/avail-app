@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*
 import java.util.*
 
 data class LoginRequest(val phone: String, val password: String)
-data class LoginResponse(val token: String, val role: Role, val name: String)
+data class LoginResponse(val token: String, val role: Role, val name: String, val id: UUID)
 data class RegisterRequest(val name: String, val phone: String, val password: String, val role: Role)
 
 @RestController
@@ -30,7 +30,7 @@ class AuthController(
         )
         val user = userRepository.findByPhone(request.phone)!!
         val token = jwtUtils.generateToken(user.phone)
-        return LoginResponse(token, user.role, user.name)
+        return LoginResponse(token, user.role, user.name, user.id)
     }
 
     @GetMapping("/me")

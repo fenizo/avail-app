@@ -41,7 +41,7 @@ data class JobResponse(
 )
 
 data class LoginRequest(val phone: String, val password: String)
-data class LoginResponse(val token: String, val role: String)
+data class LoginResponse(val token: String, val role: String, val id: String)
 
 data class CallLogRequest(
     val jobId: String? = null,
