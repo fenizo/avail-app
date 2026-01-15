@@ -37,5 +37,8 @@ data class Job(
     val qrDiscountApplied: Boolean = false,
 
     @OneToMany(mappedBy = "job", cascade = [CascadeType.ALL], orphanRemoval = true)
-    val items: MutableList<JobItem> = mutableListOf()
+    val items: MutableList<JobItem> = mutableListOf(),
+
+    @Column(updatable = false)
+    val createdAt: LocalDateTime = LocalDateTime.now()
 )

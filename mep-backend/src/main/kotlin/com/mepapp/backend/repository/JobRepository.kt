@@ -8,4 +8,5 @@ import java.util.*
 interface JobRepository : JpaRepository<Job, UUID> {
     fun findByStaffIdAndStatus(staffId: UUID, status: JobStatus): List<Job>
     fun findByStaffId(staffId: UUID): List<Job>
+    fun findAllByOrderByCreatedAtDesc(): List<Job>
 }

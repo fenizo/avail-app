@@ -10,6 +10,9 @@ import java.util.*
 @RequestMapping("/api/jobs")
 class JobController(private val jobService: JobService) {
 
+    @GetMapping
+    fun getAllJobs() = jobService.getAllJobs()
+
     @GetMapping("/{id}")
     fun getJob(@PathVariable id: UUID) = jobService.getJob(id)
 

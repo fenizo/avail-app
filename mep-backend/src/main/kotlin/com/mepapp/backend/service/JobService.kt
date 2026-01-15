@@ -44,4 +44,6 @@ class JobService(private val jobRepository: JobRepository) {
             completedAt = LocalDateTime.now()
         ))
     }
+
+    fun getAllJobs(): List<Job> = jobRepository.findAllByOrderByCreatedAtDesc()
 }
