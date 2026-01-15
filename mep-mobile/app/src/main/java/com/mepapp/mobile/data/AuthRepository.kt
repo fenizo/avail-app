@@ -19,17 +19,12 @@ class AuthRepository(private val context: Context) {
     val authToken: Flow<String?> = context.dataStore.data
         .map { preferences -> preferences[TOKEN_KEY] }
 
-    suspend fun login(phone: String, pin: String): Boolean {
-        return try {
-            val response = apiService.login(LoginRequest(phone, pin))
-            context.dataStore.edit { settings ->
-                settings[TOKEN_KEY] = response.token
-            }
-            NetworkModule.setAuthToken(response.token)
-            true
-        } catch (e: Exception) {
-            false
+    suspend fun login(phone: String, pin: String) {
+        val response = apiService.login(LoginRequest(phone, pin))
+        context.dataStore.edit { settings ->
+            settings[TOKEN_KEY] = response.token
         }
+        NetworkModule.setAuthToken(response.token)
     }
 
     suspend fun logout() {

@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
+import android.util.Log
 import com.mepapp.mobile.data.AuthRepository
 import kotlinx.coroutines.launch
 
@@ -60,12 +61,16 @@ fun LoginScreen(authRepository: AuthRepository, onLoginSuccess: () -> Unit) {
             onClick = {
                 isLoading = true
                 scope.launch {
-                    val success = authRepository.login(phone, pin)
-                    isLoading = false
-                    if (success) {
+                    try {
+                        isLoading = true
+                        errorMessage = null
+                        authRepository.login(phone, pin)
                         onLoginSuccess()
-                    } else {
-                        errorMessage = "Login failed. Check your phone and PIN."
+                    } catch (e: Exception) {
+                        Log.e("LoginScreen", "Login failed", e)
+                        errorMessage = "Login Failed: ${e.message ?: "Unknown error"}"
+                    } finally {
+                        isLoading = false
                     }
                 }
             },

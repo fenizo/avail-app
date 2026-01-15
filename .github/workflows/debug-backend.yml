@@ -14,7 +14,16 @@ jobs:
           username: ${{ secrets.BACKEND_SERVER_USER }}
           password: ${{ secrets.BACKEND_SERVER_PASSWORD }}
           script: |
-            # Register Admin User
+            echo "--- Process Check ---"
+            ps -ef | grep java | grep -v grep
+            
+            echo "--- Port Check ---"
+            netstat -tanp | grep 8085 || ss -tulpn | grep 8085 || echo "Port 8085 not listening"
+            
+            echo "--- Local API Check ---"
+            curl -s http://localhost:8085/api/auth/me || echo "API not responding on localhost"
+            
+            echo "--- Register Test User ---"
             curl -v -X POST http://localhost:8085/api/auth/register \
               -H "Content-Type: application/json" \
-              -d '{"name":"Admin User", "phone":"9876543210", "password":"admin123", "role":"ADMIN"}'
+              -d '{"name":"Admin User", "phone":"9999999999", "password":"1234", "role":"ADMIN"}'
