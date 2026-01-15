@@ -31,6 +31,9 @@ jobs:
         username: ${{ secrets.WEB_SERVER_USER }}
         password: ${{ secrets.SERVER_PASSWORD }}
         script: |
+          # Source profile to find npm/pm2
+          source ~/.profile || true
+          source ~/.bashrc || true
           cd ~/apps/mep-web/mep-web
           npm install --production
           pm2 delete mep-web || true
