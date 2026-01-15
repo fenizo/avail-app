@@ -28,7 +28,7 @@ jobs:
       with:
         host: ${{ secrets.SERVER_IP }}
         username: ${{ secrets.BACKEND_SERVER_USER }}
-        key: ${{ secrets.SERVER_SSH_KEY }}
+        password: ${{ secrets.SERVER_PASSWORD }}
         script: |
           pm2 delete mep-backend || true
           pm2 start "java -jar -Dserver.port=8085 ~/apps/mep-backend/mep-backend/target/backend-0.0.1-SNAPSHOT.jar" --name mep-backend
