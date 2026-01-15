@@ -20,9 +20,9 @@ export default function RootLayout({
             <a href="/" style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>Dashboard</a>
             <a href="/jobs" style={{ color: '#94a3b8', textDecoration: 'none' }}>Jobs</a>
             <a href="/call-logs" style={{ color: '#94a3b8', textDecoration: 'none' }}>Call Logs</a>
-            <a href="#" style={{ color: '#94a3b8', textDecoration: 'none' }}>Customers</a>
-            <a href="#" style={{ color: '#94a3b8', textDecoration: 'none' }}>Staff</a>
-            <a href="#" style={{ color: '#94a3b8', textDecoration: 'none' }}>Settings</a>
+            <a href="/customers" style={{ color: '#94a3b8', textDecoration: 'none' }}>Customers</a>
+            <a href="/staff" style={{ color: '#94a3b8', textDecoration: 'none' }}>Staff</a>
+            <a href="/settings" style={{ color: '#94a3b8', textDecoration: 'none' }}>Settings</a>
           </nav>
         </div>
         <main className="main-content">
