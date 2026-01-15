@@ -30,69 +30,55 @@ jobs:
         username: ${{ secrets.BACKEND_SERVER_USER }}
         password: ${{ secrets.BACKEND_SERVER_PASSWORD }}
         script: |
-          # Try to load environment
-          for f in /etc/profile ~/.profile ~/.bash_profile ~/.bashrc; do
-            [ -f "$f" ] && . "$f" && echo "Sourced $f"
-          done
+          # Ensure target directory exists
+          mkdir -p ~/apps/mep-backend/java
           
-          export PATH=$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-          
-          # Find PM2
-          PM2_BIN=$(command -v pm2 || which pm2 || find /usr/local/bin /usr/bin /opt -name pm2 -type f 2>/dev/null | head -n 1)
-          
-          if [ -n "$PM2_BIN" ]; then
-            echo "Using PM2 at: $PM2_BIN"
-            $PM2_BIN delete mep-backend || true
-            # Ensure target directory exists
-            mkdir -p ~/apps/mep-backend/java
-            
-            # Download and extract Portable Java 17 if not present
-            if [ ! -f ~/apps/mep-backend/java/jdk-17/bin/java ]; then
-              echo "Downloading Portable OpenJDK 17..."
-              curl -L https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.13%2B11/OpenJDK17U-jdk_x64_linux_hotspot_17.0.13_11.tar.gz -o ~/apps/mep-backend/java/jdk.tar.gz
-              tar -xzf ~/apps/mep-backend/java/jdk.tar.gz -C ~/apps/mep-backend/java/
-              mv ~/apps/mep-backend/java/jdk-17* ~/apps/mep-backend/java/jdk-17
-              rm ~/apps/mep-backend/java/jdk.tar.gz
-            fi
-            
-            JAVA_BIN="$HOME/apps/mep-backend/java/jdk-17/bin/java"
-            JAR_DIR="$HOME/apps/mep-backend/mep-backend/target"
-            JAR_FILE=$(find "$JAR_DIR" -maxdepth 1 -name "*.jar" | head -n 1)
-            
-            echo "Using Portable Java at: $JAVA_BIN"
-            if [ ! -x "$JAVA_BIN" ]; then
-              echo "Error: Java binary not executable or found at $JAVA_BIN"
-              exit 1
-            fi
-            $JAVA_BIN -version
-            
-            echo "Found JAR file: $JAR_FILE"
-            if [ -z "$JAR_FILE" ]; then
-              echo "Error: No JAR file found in $JAR_DIR"
-              exit 1
-            fi
-            
-            # Kill existing process on port 8085
-            fuser -k 8085/tcp || true
-            
-            # Start Java app with robust nohup and explicit path
-            cd "$HOME/apps/mep-backend/mep-backend"
-            rm -f app.log
-            nohup "$JAVA_BIN" -jar "$JAR_FILE" --server.port=8085 > app.log 2>&1 &
-            
-            # Wait for process to initialize
-            echo "Waiting for backend to start..."
-            sleep 15
-            
-            # Verify process is running
-            echo "Checking process status:"
-            ps -ef | grep java | grep -v grep
-            
-            # Check log for immediate errors
-            echo "Initial Log Output:"
-            [ -f app.log ] && head -n 50 app.log || echo "app.log not found"
-            
-            # Check if port is listening
-            echo "Port Check:"
-            netstat -tulpn | grep 8085 || echo "Port 8085 NOT listening"
+          # Download and extract Portable Java 17 if not present
+          if [ ! -f ~/apps/mep-backend/java/jdk-17/bin/java ]; then
+            echo "Downloading Portable OpenJDK 17..."
+            curl -L https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.13%2B11/OpenJDK17U-jdk_x64_linux_hotspot_17.0.13_11.tar.gz -o ~/apps/mep-backend/java/jdk.tar.gz
+            tar -xzf ~/apps/mep-backend/java/jdk.tar.gz -C ~/apps/mep-backend/java/
+            mv ~/apps/mep-backend/java/jdk-17* ~/apps/mep-backend/java/jdk-17
+            rm ~/apps/mep-backend/java/jdk.tar.gz
           fi
+          
+          JAVA_BIN="$HOME/apps/mep-backend/java/jdk-17/bin/java"
+          JAR_DIR="$HOME/apps/mep-backend/mep-backend/target"
+          JAR_FILE=$(find "$JAR_DIR" -maxdepth 1 -name "*.jar" | head -n 1)
+          
+          echo "Using Portable Java at: $JAVA_BIN"
+          if [ ! -x "$JAVA_BIN" ]; then
+            echo "Error: Java binary not executable or found at $JAVA_BIN"
+            exit 1
+          fi
+          $JAVA_BIN -version
+          
+          echo "Found JAR file: $JAR_FILE"
+          if [ -z "$JAR_FILE" ]; then
+            echo "Error: No JAR file found in $JAR_DIR"
+            exit 1
+          fi
+          
+          # Kill existing process on port 8085
+          fuser -k 8085/tcp || true
+          
+          # Start Java app with robust nohup and explicit path
+          cd "$HOME/apps/mep-backend/mep-backend"
+          rm -f app.log
+          nohup "$JAVA_BIN" -jar "$JAR_FILE" --server.port=8085 > app.log 2>&1 &
+          
+          # Wait for process to initialize
+          echo "Waiting for backend to start..."
+          sleep 15
+          
+          # Verify process is running
+          echo "Checking process status:"
+          ps -ef | grep java | grep -v grep
+          
+          # Check log for immediate errors
+          echo "Initial Log Output:"
+          [ -f app.log ] && head -n 50 app.log || echo "app.log not found"
+          
+          # Check if port is listening
+          echo "Port Check:"
+          netstat -tulpn | grep 8085 || echo "Port 8085 NOT listening"
