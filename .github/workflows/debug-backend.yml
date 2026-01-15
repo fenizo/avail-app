@@ -14,20 +14,17 @@ jobs:
           username: ${{ secrets.BACKEND_SERVER_USER }}
           password: ${{ secrets.BACKEND_SERVER_PASSWORD }}
           script: |
-            echo "--- OS Info ---"
-            cat /etc/os-release
+            echo "--- Sudo Test ---"
+            echo "${{ secrets.BACKEND_SERVER_PASSWORD }}" | sudo -S whoami
             
-            echo "--- Package Check (Java/SSL) ---"
-            dpkg -l | grep -E "jdk|jre|clp|nginx" || echo "No relevant packages found"
+            echo "--- Site List ---"
+            echo "${{ secrets.BACKEND_SERVER_PASSWORD }}" | sudo -S clpctl site:list || echo "site:list failed"
             
-            echo "--- Attempting SSL with Password Pipe ---"
-            echo "${{ secrets.BACKEND_SERVER_PASSWORD }}" | sudo -S clpctl site:add:ssl --domain=staging.maduraielectriciansandplumbers.com --force || echo "SSL pipe failed"
+            echo "--- JAR Search ---"
+            find /home -name "*.jar" 2>/dev/null || echo "No jars found in /home"
             
-            echo "--- Nginx Site Configs ---"
-            ls -la /etc/nginx/sites-enabled/
-            
-            echo "--- Search for Java in /usr/lib/jvm ---"
-            ls -R /usr/lib/jvm 2>/dev/null || echo "JVM dir not found"
+            echo "--- Attempting SSL again ---"
+            echo "${{ secrets.BACKEND_SERVER_PASSWORD }}" | sudo -S clpctl site:add:ssl --domain=staging.maduraielectriciansandplumbers.com --force || echo "SSL failed"
             
             echo "--- Port Check ---"
             netstat -tanp | grep 8085 || ss -tulpn | grep 8085 || echo "Port 8085 not listening"
