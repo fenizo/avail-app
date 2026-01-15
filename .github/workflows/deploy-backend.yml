@@ -43,12 +43,21 @@ jobs:
           if [ -n "$PM2_BIN" ]; then
             echo "Using PM2 at: $PM2_BIN"
             $PM2_BIN delete mep-backend || true
-            $PM2_BIN start "java -jar -Dserver.port=8085 ~/apps/mep-backend/mep-backend/target/backend-0.0.1-SNAPSHOT.jar" --name mep-backend
-          else
-            echo "PM2 not found. Falling back to nohup."
-            # Find Java Binary
-            JAVA_BIN=$(command -v java || which java || find /usr/local /usr/bin /opt -name java -type f 2>/dev/null | head -n 1 || echo "java")
-            echo "Using Java at: $JAVA_BIN"
+            # Ensure target directory exists
+            mkdir -p ~/apps/mep-backend/java
+            
+            # Download and extract Portable Java 17 if not present
+            if [ ! -f ~/apps/mep-backend/java/jdk-17/bin/java ]; then
+              echo "Downloading Portable OpenJDK 17..."
+              curl -L https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.13%2B11/OpenJDK17U-jdk_x64_linux_hotspot_17.0.13_11.tar.gz -o ~/apps/mep-backend/java/jdk.tar.gz
+              tar -xzf ~/apps/mep-backend/java/jdk.tar.gz -C ~/apps/mep-backend/java/
+              mv ~/apps/mep-backend/java/jdk-17* ~/apps/mep-backend/java/jdk-17
+              rm ~/apps/mep-backend/java/jdk.tar.gz
+            fi
+            
+            JAVA_BIN=~/apps/mep-backend/java/jdk-17/bin/java
+            echo "Using Portable Java at: $JAVA_BIN"
+            $JAVA_BIN -version
             
             # Kill existing process on port 8085
             fuser -k 8085/tcp || true
