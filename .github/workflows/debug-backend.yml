@@ -14,9 +14,7 @@ jobs:
           username: ${{ secrets.BACKEND_SERVER_USER }}
           password: ${{ secrets.BACKEND_SERVER_PASSWORD }}
           script: |
-            echo "=== PROCESSES ==="
-            ps -ef | grep java
-            echo "=== PORTS ==="
-            netstat -tulpn | grep 8085 || echo "Port 8085 not listening"
-            echo "=== LOGS (app.log) ==="
-            tail -n 100 app.log || echo "app.log not found"
+            # Register Admin User
+            curl -v -X POST http://localhost:8085/api/auth/register \
+              -H "Content-Type: application/json" \
+              -d '{"name":"Admin User", "phone":"9876543210", "password":"admin123", "role":"ADMIN"}'
