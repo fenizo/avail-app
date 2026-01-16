@@ -2,7 +2,7 @@ package com.mepapp.backend.entity
 
 import jakarta.persistence.*
 import java.time.LocalDateTime
-import java.util.*
+import java.util.UUID
 
 @Entity
 @Table(name = "call_logs")

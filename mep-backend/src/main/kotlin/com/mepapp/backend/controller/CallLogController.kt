@@ -6,7 +6,7 @@ import com.mepapp.backend.repository.JobRepository
 import com.mepapp.backend.repository.UserRepository
 import org.springframework.web.bind.annotation.*
 import java.time.LocalDateTime
-import java.util.*
+import java.util.UUID
 
 @RestController
 @RequestMapping("/api/call-logs")
@@ -17,7 +17,7 @@ class CallLogController(
 ) {
     @PostMapping
     fun logCall(@RequestBody request: CallLogRequest): CallLog {
-        val staff = userRepository.findById(request.staffId).orElseThrow { Exception("Staff not found") }
+        val staff = userRepository.findById(request.staffId).orElseThrow { RuntimeException("Staff not found") }
         val job = request.jobId?.let { jobRepository.findById(it).orElse(null) }
         
         val callLog = CallLog(
