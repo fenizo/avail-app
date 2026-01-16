@@ -1,6 +1,5 @@
-"use client";
-
 import React, { useEffect, useState } from 'react';
+import { apiFetch } from '@/lib/api';
 
 interface JobItem {
     description: string;
@@ -29,10 +28,12 @@ export default function Dashboard() {
     const [callLogs, setCallLogs] = useState<any[]>([]);
 
     useEffect(() => {
-        fetch('/api/jobs')
+        apiFetch('/api/jobs')
             .then(res => res.json())
             .then(data => {
-                setJobs(data);
+                if (Array.isArray(data)) {
+                    setJobs(data);
+                }
                 setLoading(false);
             })
             .catch(err => {
@@ -40,9 +41,13 @@ export default function Dashboard() {
                 setLoading(false);
             });
 
-        fetch('/api/call-logs/job/00000000-0000-0000-0000-000000000000') // Placeholder for now
+        apiFetch('/api/call-logs') // Using standard path now
             .then(res => res.json())
-            .then(data => setCallLogs(data))
+            .then(data => {
+                if (Array.isArray(data)) {
+                    setCallLogs(data);
+                }
+            })
             .catch(() => { });
     }, []);
 

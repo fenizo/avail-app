@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import { apiFetch } from '@/lib/api';
 
 interface CallLog {
     id: string;
@@ -13,25 +14,60 @@ interface CallLog {
     };
 }
 
-export default function CallLogsPage() {
-    const [logs, setLogs] = useState<CallLog[]>([]);
+const CallLogsPage = () => {
+    const [logs, setLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-    useEffect(() => {
-        fetch('/api/call-logs')
+    const fetchLogs = () => {
+        setLoading(true);
+        apiFetch('/api/call-logs')
             .then(res => res.json())
             .then(data => {
-                setLogs(data);
+                if (Array.isArray(data)) {
+                    setLogs(data);
+                }
                 setLoading(false);
+                setLastUpdated(new Date());
             })
-            .catch(() => setLoading(false));
+            .catch((err) => {
+                setLoading(false);
+                console.error("Error fetching logs:", err);
+            });
+    };
+
+    useEffect(() => {
+        fetchLogs();
     }, []);
 
     return (
         <div>
-            <header style={{ marginBottom: '32px' }}>
-                <h2 style={{ fontSize: '2rem', fontWeight: 700 }}>Call Logs</h2>
-                <p style={{ color: '#94a3b8' }}>Monitor all field staff communication.</p>
+            <header style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <h2 style={{ fontSize: '2rem', fontWeight: 700 }}>Call Logs</h2>
+                    <p style={{ color: '#94a3b8' }}>Monitor all field staff communication.</p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                    <button
+                        onClick={fetchLogs}
+                        style={{
+                            background: 'var(--primary)',
+                            color: 'white',
+                            border: 'none',
+                            padding: '10px 20px',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontWeight: 600
+                        }}
+                    >
+                        Refresh Logs
+                    </button>
+                    {lastUpdated && (
+                        <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '8px' }}>
+                            Last Updated: {lastUpdated.toLocaleTimeString()}
+                        </p>
+                    )}
+                </div>
             </header>
 
             <section className="glass-card" style={{ padding: '24px' }}>
