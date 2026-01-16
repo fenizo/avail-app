@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun JobListScreen(userId: String?, onJobClick: (String) -> Unit) {
+fun JobListScreen(userId: String?, token: String?, onJobClick: (String) -> Unit) {
     var jobs by remember { mutableStateOf<List<JobResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -29,9 +29,11 @@ fun JobListScreen(userId: String?, onJobClick: (String) -> Unit) {
     // Explicitly typed to ensure compiler finds it
     val apiService = remember { NetworkModule.createService<MepApiService>() }
 
-    LaunchedEffect(userId) {
-        if (userId != null) {
+    LaunchedEffect(userId, token) {
+        if (userId != null && token != null) {
             try {
+                // Ensure token is set before call (fixes restart race condition)
+                NetworkModule.setAuthToken(token)
                 jobs = apiService.getJobs(userId)
                 isLoading = false
             } catch (e: Exception) {
@@ -39,14 +41,81 @@ fun JobListScreen(userId: String?, onJobClick: (String) -> Unit) {
                 isLoading = false
             }
         } else {
-            // Wait for userId or show error if null persists
-            // isLoading remains true until userId available
+            // Wait for userId and token
+        }
+    }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    // Sync Logic
+    fun syncLogs() {
+        scope.launch {
+            try {
+                snackbarHostState.showSnackbar("Syncing logs...")
+                val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
+                val cursor = context.contentResolver.query(
+                    android.provider.CallLog.Calls.CONTENT_URI,
+                    null,
+                    "${android.provider.CallLog.Calls.DATE} > ?",
+                    arrayOf(thirtyDaysAgo.toString()),
+                    "${android.provider.CallLog.Calls.DATE} DESC"
+                )
+                
+                val logs = mutableListOf<com.mepapp.mobile.network.CallLogRequest>()
+                cursor?.use {
+                    val numberIdx = it.getColumnIndex(android.provider.CallLog.Calls.NUMBER)
+                    val typeIdx = it.getColumnIndex(android.provider.CallLog.Calls.TYPE)
+                    val dateIdx = it.getColumnIndex(android.provider.CallLog.Calls.DATE)
+                    val durIdx = it.getColumnIndex(android.provider.CallLog.Calls.DURATION)
+                    
+                    while (it.moveToNext()) {
+                        val number = it.getString(numberIdx)
+                        val type = when (it.getInt(typeIdx)) {
+                            android.provider.CallLog.Calls.INCOMING_TYPE -> "INCOMING"
+                            android.provider.CallLog.Calls.OUTGOING_TYPE -> "OUTGOING"
+                            android.provider.CallLog.Calls.MISSED_TYPE -> "MISSED"
+                            else -> "UNKNOWN"
+                        }
+                        val date = it.getLong(dateIdx)
+                        val duration = it.getLong(durIdx)
+                        val isoDate = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US).format(java.util.Date(date))
+                        
+                        logs.add(com.mepapp.mobile.network.CallLogRequest(
+                            staffId = userId!!,
+                            phoneNumber = number,
+                            duration = duration,
+                            callType = type,
+                            timestamp = isoDate
+                        ))
+                    }
+                }
+                
+                if (logs.isNotEmpty()) {
+                    apiService.logCalls(logs)
+                    snackbarHostState.showSnackbar("Success: Uploaded ${logs.size} logs")
+                } else {
+                    snackbarHostState.showSnackbar("No recent calls found locally.")
+                }
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar("Error: ${e.message}")
+            }
         }
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(title = { Text("My Assigned Jobs", fontWeight = FontWeight.Bold) })
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { syncLogs() },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
+                Text("Sync Logs")
+            }
         }
     ) { padding ->
         Box(modifier = Modifier.padding(padding).fillMaxSize()) {

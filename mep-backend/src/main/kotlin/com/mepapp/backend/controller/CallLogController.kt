@@ -44,6 +44,10 @@ class CallLogController(
     fun getLogsByJob(@PathVariable jobId: UUID): List<CallLog> =
         callLogRepository.findByJobIdOrderByTimestampDesc(jobId)
 
+    @GetMapping("/staff/{staffId}")
+    fun getLogsByStaff(@PathVariable staffId: UUID): List<CallLog> =
+        callLogRepository.findByStaffIdOrderByTimestampDesc(staffId)
+
     @GetMapping("/ping")
     fun ping(): Map<String, String> = mapOf("status" to "ok")
 

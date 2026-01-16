@@ -5,7 +5,10 @@ import { apiFetch } from '../../lib/api';
 
 interface CallLog {
     id: string;
-    staffName: string;
+    staff: {
+        id: string;
+        name: string;
+    };
     phoneNumber: string;
     contactName: string;
     callType: string;
@@ -20,6 +23,8 @@ const CallLogsPage = () => {
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [filterMode, setFilterMode] = useState<'today' | 'yesterday' | 'custom' | 'all'>('all');
     const [customDate, setCustomDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [staffList, setStaffList] = useState<{ id: string, name: string }[]>([]);
+    const [selectedStaff, setSelectedStaff] = useState<string>('all');
 
     const fetchLogs = () => {
         setLoading(true);
@@ -36,6 +41,15 @@ const CallLogsPage = () => {
                 setLoading(false);
                 console.error("Error fetching logs:", err);
             });
+
+        apiFetch('/api/staff')
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    setStaffList(data.map(s => ({ id: s.id, name: s.name })));
+                }
+            })
+            .catch(err => console.error("Error fetching staff list"));
     };
 
     useEffect(() => {
@@ -44,7 +58,7 @@ const CallLogsPage = () => {
 
     useEffect(() => {
         processLogs();
-    }, [rawLogs, filterMode, customDate]);
+    }, [rawLogs, filterMode, customDate, selectedStaff]);
 
     const processLogs = () => {
         let filtered = [...rawLogs];
@@ -71,6 +85,12 @@ const CallLogsPage = () => {
                 return logDate.getTime() === targetDate.getTime();
             }
             return true;
+        }).filter(log => {
+            if (selectedStaff === 'all') return true;
+            // The log.staff.id is where we want to filter, but let's check log structure.
+            // backend CallLog has @ManyToOne staff: User.
+            // So log.staff should exist.
+            return (log as any).staff?.id === selectedStaff;
         });
 
         // 2. Deduplication (Group by phone number, keep latest)
@@ -133,6 +153,26 @@ const CallLogsPage = () => {
                     Yesterday
                 </button>
 
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '12px' }}>
+                    <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Staff:</span>
+                    <select
+                        value={selectedStaff}
+                        onChange={(e) => setSelectedStaff(e.target.value)}
+                        style={{
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid var(--card-border)',
+                            borderRadius: '6px',
+                            color: 'white',
+                            padding: '6px 10px',
+                            fontSize: '0.85rem',
+                            outline: 'none'
+                        }}
+                    >
+                        <option value="all">All Staff</option>
+                        {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                </div>
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
                     <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Custom Date:</span>
                     <input
@@ -175,7 +215,7 @@ const CallLogsPage = () => {
                         ) : (
                             displayLogs.map((log) => (
                                 <tr key={log.id} style={{ borderBottom: '1px solid var(--card-border)', transition: 'background 0.2s' }}>
-                                    <td style={{ padding: '16px 24px', fontWeight: 500 }}>{log.staffName || 'Admin'}</td>
+                                    <td style={{ padding: '16px 24px', fontWeight: 500 }}>{log.staff?.name || 'Admin'}</td>
                                     <td style={{ padding: '16px 24px', fontWeight: 500, color: '#f8fafc' }}>{log.contactName || '-'}</td>
                                     <td style={{ padding: '16px 24px', color: '#38bdf8' }}>{log.phoneNumber}</td>
                                     <td style={{ padding: '16px 24px' }}>
