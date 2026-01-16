@@ -24,7 +24,12 @@ interface MepApiService {
 
     @GET("api/auth/me")
     suspend fun getMe(): UserResponse
+
+    @GET("api/settings/sync-interval")
+    suspend fun getSyncInterval(): SyncIntervalResponse
 }
+
+data class SyncIntervalResponse(val value: String)
 
 data class UserResponse(
     val id: String,
