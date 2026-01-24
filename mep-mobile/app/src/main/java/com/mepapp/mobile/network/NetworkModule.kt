@@ -30,6 +30,9 @@ object NetworkModule {
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)
         .addInterceptor(loggingInterceptor)
+        .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
     val retrofit: Retrofit = Retrofit.Builder()
