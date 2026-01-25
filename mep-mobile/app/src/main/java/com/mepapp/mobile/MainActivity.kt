@@ -167,7 +167,7 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun showPermissionDialog(title: String, message: String, onOkClick: () -> Unit) {
-        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        val builder = android.app.AlertDialog.Builder(this)
         builder.setTitle(title)
         builder.setMessage(message)
         builder.setPositiveButton("Grant Permission") { dialog: android.content.DialogInterface, _: Int ->
