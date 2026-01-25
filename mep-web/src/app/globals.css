@@ -10,8 +10,8 @@
   --glass: rgba(0, 0, 0, 0.02);
   --success: #22c55e;
   --warning: #f59e0b;
-  --text-muted: #64748b;
-  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+  --text-secondary: #64748b;
 }
 
 * {
@@ -158,6 +158,6 @@ body {
 }
 
 .metric-label {
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 0.875rem;
 }
