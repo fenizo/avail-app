@@ -129,7 +129,7 @@ const CallLogsPage = () => {
                     <p style={{ color: '#64748b' }}>Monitor and filter field staff communication.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                    {lastUpdated && <span style={{ fontSize: '0.8rem', color: '#475569' }}>Last updated: {lastUpdated.toLocaleTimeString()}</span>}
+                    {lastUpdated && <span style={{ fontSize: '0.8rem', color: '#374151' }}>Last updated: {lastUpdated.toLocaleTimeString()}</span>}
                     <button onClick={fetchLogs} disabled={loading} className="btn-primary">
                         {loading ? 'Updating...' : 'Refresh Logs'}
                     </button>
@@ -155,7 +155,7 @@ const CallLogsPage = () => {
                     {lastUpdated ? (
                         <>
                             <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '4px' }}>Last Synced</div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f8fafc' }}>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#1a1a1a' }}>
                                 {lastUpdated.toLocaleTimeString()}
                             </div>
                             <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '8px' }}>
@@ -278,11 +278,11 @@ const CallLogsPage = () => {
             {/* Contact Cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {loading && displayLogs.length === 0 ? (
-                    <div className="glass-card" style={{ padding: '48px', textAlign: 'center', color: '#475569' }}>
+                    <div className="glass-card" style={{ padding: '48px', textAlign: 'center', color: '#374151' }}>
                         Fetching call history...
                     </div>
                 ) : displayLogs.length === 0 ? (
-                    <div className="glass-card" style={{ padding: '48px', textAlign: 'center', color: '#475569' }}>
+                    <div className="glass-card" style={{ padding: '48px', textAlign: 'center', color: '#374151' }}>
                         No call logs found for this filter.
                     </div>
                 ) : (
@@ -311,7 +311,7 @@ const CallLogsPage = () => {
                                     <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flex: 1 }}>
                                         {/* Contact Name/Number */}
                                         <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f8fafc', marginBottom: '4px' }}>
+                                            <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '4px' }}>
                                                 {log.contactName || log.phoneNumber}
                                             </div>
                                             {log.contactName && (
