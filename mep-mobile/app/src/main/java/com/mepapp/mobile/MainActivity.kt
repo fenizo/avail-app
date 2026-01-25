@@ -27,6 +27,9 @@ class MainActivity : ComponentActivity() {
         // Check and request all necessary permissions with explanatory dialogs
         checkAndRequestPermissions()
         
+        // Check for app updates
+        checkForUpdates()
+        
         setupCallLogSync()
 
         setContent {
@@ -39,6 +42,38 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+    
+    private fun checkForUpdates() {
+        lifecycleScope.launch {
+            try {
+                val updateInfo = com.mepapp.mobile.update.AppUpdater.checkForUpdate(this@MainActivity)
+                if (updateInfo != null) {
+                    showUpdateDialog(updateInfo)
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error checking for updates", e)
+            }
+        }
+    }
+    
+    private fun showUpdateDialog(updateInfo: com.mepapp.mobile.update.UpdateInfo) {
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        builder.setTitle("Update Available")
+        builder.setMessage(
+            "Version ${updateInfo.version} is now available!\n\n" +
+            "${updateInfo.releaseNotes}\n\n" +
+            "Would you like to update now?"
+        )
+        builder.setPositiveButton("Update Now") { dialog, _ ->
+            com.mepapp.mobile.update.AppUpdater.downloadAndInstall(this, updateInfo)
+            dialog.dismiss()
+        }
+        builder.setNegativeButton("Later") { dialog, _ ->
+            dialog.dismiss()
+        }
+        builder.setCancelable(false)
+        builder.show()
     }
     
     private fun checkAndRequestPermissions() {
@@ -204,8 +239,8 @@ class MainActivity : ComponentActivity() {
             .setConstraints(constraints)
             .setBackoffCriteria(
                 androidx.work.BackoffPolicy.EXPONENTIAL,
-                androidx.work.PeriodicWorkRequest.MIN_BACKOFF_MILLIS,
-                java.util.concurrent.TimeUnit.MILLISECONDS
+                15,
+                java.util.concurrent.TimeUnit.MINUTES
             )
             .build()
         

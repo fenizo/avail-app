@@ -1,4 +1,4 @@
-# MEP Mobile App
+# MEP Mobile App v1.0
 
 Field staff mobile application for electricians and plumbers.
 

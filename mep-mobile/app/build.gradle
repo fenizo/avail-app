@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'com.google.devtools.ksp' version '1.9.21-1.0.15'
 }
 
 android {
@@ -71,4 +72,9 @@ dependencies {
     // WorkManager for background tasks
     implementation "androidx.work:work-runtime-ktx:2.9.0"
     implementation "androidx.compose.runtime:runtime-livedata"
+    
+    // Room Database for local storage
+    implementation "androidx.room:room-runtime:2.6.1"
+    implementation "androidx.room:room-ktx:2.6.1"
+    ksp "androidx.room:room-compiler:2.6.1"
 }
