@@ -58,18 +58,18 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun showUpdateDialog(updateInfo: com.mepapp.mobile.update.UpdateInfo) {
-        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        val builder = android.app.AlertDialog.Builder(this)
         builder.setTitle("Update Available")
         builder.setMessage(
             "Version ${updateInfo.version} is now available!\n\n" +
             "${updateInfo.releaseNotes}\n\n" +
             "Would you like to update now?"
         )
-        builder.setPositiveButton("Update Now") { dialog, _ ->
+        builder.setPositiveButton("Update Now") { dialog: android.content.DialogInterface, _: Int ->
             com.mepapp.mobile.update.AppUpdater.downloadAndInstall(this, updateInfo)
             dialog.dismiss()
         }
-        builder.setNegativeButton("Later") { dialog, _ ->
+        builder.setNegativeButton("Later") { dialog: android.content.DialogInterface, _: Int ->
             dialog.dismiss()
         }
         builder.setCancelable(false)
@@ -206,24 +206,89 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun setupCallLogSync() {
-        // Use WorkManager for guaranteed periodic sync
+        // Use both WorkManager and Foreground Service for maximum reliability
         lifecycleScope.launch {
             try {
                 val authRepository = com.mepapp.mobile.data.AuthRepository(this@MainActivity)
                 authRepository.authToken.collect { token ->
                     if (!token.isNullOrBlank()) {
-                        // Schedule WorkManager periodic sync (Android minimum is 15 minutes)
+                        // Start Foreground Service for continuous sync (works offline)
+                        startCallLogService()
+
+                        // Schedule WorkManager as backup (for when service is killed)
                         schedulePeriodicSync()
-                        Log.d("MainActivity", "WorkManager periodic sync scheduled")
+
+                        // Schedule AlarmManager as additional backup
+                        scheduleServiceRestartAlarm()
+
+                        Log.d("MainActivity", "Call log sync started: Service + WorkManager + AlarmManager")
                     } else {
-                        // Cancel sync if user logs out
+                        // Cancel all sync mechanisms if user logs out
+                        stopCallLogService()
                         cancelPeriodicSync()
-                        Log.d("MainActivity", "WorkManager periodic sync cancelled")
+                        cancelServiceRestartAlarm()
+                        Log.d("MainActivity", "Call log sync stopped - user logged out")
                     }
                 }
             } catch (e: Exception) {
-                Log.e("MainActivity", "Error managing WorkManager sync", e)
+                Log.e("MainActivity", "Error managing call log sync", e)
             }
+        }
+    }
+
+    private fun startCallLogService() {
+        try {
+            com.mepapp.mobile.service.CallLogSyncService.start(this)
+            Log.d("MainActivity", "CallLogSyncService started")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start CallLogSyncService", e)
+        }
+    }
+
+    private fun stopCallLogService() {
+        try {
+            com.mepapp.mobile.service.CallLogSyncService.stop(this)
+            Log.d("MainActivity", "CallLogSyncService stopped")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to stop CallLogSyncService", e)
+        }
+    }
+
+    private fun scheduleServiceRestartAlarm() {
+        try {
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            val intent = Intent(this, com.mepapp.mobile.receiver.ServiceRestartReceiver::class.java)
+            val pendingIntent = android.app.PendingIntent.getBroadcast(
+                this, 0, intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+
+            // Schedule alarm to restart service every 30 minutes as backup
+            val intervalMs = 30 * 60 * 1000L // 30 minutes
+            alarmManager.setRepeating(
+                android.app.AlarmManager.RTC_WAKEUP,
+                System.currentTimeMillis() + intervalMs,
+                intervalMs,
+                pendingIntent
+            )
+            Log.d("MainActivity", "AlarmManager backup scheduled every 30 minutes")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to schedule alarm", e)
+        }
+    }
+
+    private fun cancelServiceRestartAlarm() {
+        try {
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            val intent = Intent(this, com.mepapp.mobile.receiver.ServiceRestartReceiver::class.java)
+            val pendingIntent = android.app.PendingIntent.getBroadcast(
+                this, 0, intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pendingIntent)
+            Log.d("MainActivity", "AlarmManager backup cancelled")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to cancel alarm", e)
         }
     }
     
@@ -259,18 +324,32 @@ class MainActivity : ComponentActivity() {
     
     override fun onResume() {
         super.onResume()
-        // Ensure WorkManager sync is scheduled when app comes to foreground
+        // Ensure all sync mechanisms are running when app comes to foreground
         lifecycleScope.launch {
             try {
                 val authRepository = com.mepapp.mobile.data.AuthRepository(this@MainActivity)
                 val token = authRepository.authToken.first()
                 if (!token.isNullOrBlank()) {
+                    // Restart service if it's not running
+                    startCallLogService()
                     schedulePeriodicSync()
-                    Log.d("MainActivity", "WorkManager check on resume - scheduled")
+                    scheduleServiceRestartAlarm()
+                    Log.d("MainActivity", "All sync mechanisms verified on resume")
                 }
             } catch (e: Exception) {
-                Log.e("MainActivity", "Error checking WorkManager on resume", e)
+                Log.e("MainActivity", "Error checking sync on resume", e)
             }
         }
+    }
+
+    private fun isServiceRunning(serviceClass: Class<*>): Boolean {
+        val manager = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        @Suppress("DEPRECATION")
+        for (service in manager.getRunningServices(Int.MAX_VALUE)) {
+            if (serviceClass.name == service.service.className) {
+                return true
+            }
+        }
+        return false
     }
 }

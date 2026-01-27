@@ -109,31 +109,22 @@ class PhoneStateReceiver : BroadcastReceiver() {
     private fun saveCallToDatabase(context: Context, phoneNumber: String?, timestamp: Long, duration: Long) {
         scope.launch {
             try {
-                // Get auth token and staff ID
+                // Get staff ID from LOCAL STORAGE (works offline!)
                 val authRepository = AuthRepository(context)
-                val token = authRepository.authToken.first()
-                
-                if (token.isNullOrBlank()) {
-                    Log.w(TAG, "User not logged in, skipping call log")
+                val staffId = authRepository.userId.first()
+
+                if (staffId.isNullOrBlank()) {
+                    Log.w(TAG, "User not logged in (no staffId stored), skipping call log")
                     return@launch
                 }
-                
-                NetworkModule.setAuthToken(token)
-                val apiService = NetworkModule.createService<MepApiService>()
-                val staffId = try {
-                    apiService.getMe().id
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to get staff ID", e)
-                    return@launch
-                }
-                
+
                 // Get call details from call log
                 val callDetails = getCallDetailsFromLog(context, phoneNumber, timestamp)
-                
+
                 if (callDetails != null) {
                     val database = AppDatabase.getDatabase(context)
                     val callLogDao = database.callLogDao()
-                    
+
                     // Create entity
                     val callEntity = CallLogEntity(
                         phoneNumber = callDetails.number,
@@ -145,18 +136,18 @@ class PhoneStateReceiver : BroadcastReceiver() {
                         isSynced = false,
                         phoneCallId = callDetails.callId
                     )
-                    
+
                     // Check if already exists
                     val exists = callLogDao.callLogExists(callDetails.callId) > 0
                     if (!exists) {
                         callLogDao.insertCallLog(callEntity)
-                        Log.d(TAG, "Call saved to database: ${callDetails.number}")
-                        
-                        // Try to sync immediately if online
+                        Log.d(TAG, "Call saved to LOCAL database (OFFLINE OK): ${callDetails.number}")
+
+                        // Try to sync immediately if online (non-blocking)
                         syncToServer(context, callEntity)
                     }
                 }
-                
+
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving call to database", e)
             }
@@ -220,13 +211,21 @@ class PhoneStateReceiver : BroadcastReceiver() {
     
     private suspend fun syncToServer(context: Context, callEntity: CallLogEntity) {
         try {
+            // Check network first - don't fail if offline
+            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val network = connectivityManager.activeNetwork
+            if (network == null) {
+                Log.d(TAG, "No network - call saved locally, will sync when online")
+                return
+            }
+
             val authRepository = AuthRepository(context)
             val token = authRepository.authToken.first()
-            
+
             if (!token.isNullOrBlank()) {
                 NetworkModule.setAuthToken(token)
                 val apiService = NetworkModule.createService<MepApiService>()
-                
+
                 val callRequest = CallLogRequest(
                     phoneNumber = callEntity.phoneNumber,
                     callType = callEntity.callType,
@@ -235,17 +234,18 @@ class PhoneStateReceiver : BroadcastReceiver() {
                     timestamp = callEntity.timestamp,
                     staffId = callEntity.staffId
                 )
-                
+
                 apiService.logCalls(listOf(callRequest))
-                
+
                 // Mark as synced
                 val database = AppDatabase.getDatabase(context)
                 database.callLogDao().markAsSynced(listOf(callEntity.id))
-                
+
                 Log.d(TAG, "Call synced to server: ${callEntity.phoneNumber}")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error syncing to server (will retry later)", e)
+            // Non-fatal - data is safe in local database, will sync later
+            Log.d(TAG, "Server sync failed (offline?) - call is saved locally, will retry: ${e.message}")
         }
     }
     

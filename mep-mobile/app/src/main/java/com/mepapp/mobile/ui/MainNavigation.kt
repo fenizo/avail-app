@@ -45,9 +45,15 @@ fun MainNavigation() {
                 onJobClick = { id ->
                     selectedJobId = id
                     currentScreen = "details"
+                },
+                onLogsClick = {
+                    currentScreen = "logs"
                 }
             )
             "details" -> JobDetailScreen(jobId = selectedJobId, onBack = {
+                currentScreen = "list"
+            })
+            "logs" -> CallLogsScreen(onBack = {
                 currentScreen = "list"
             })
         }

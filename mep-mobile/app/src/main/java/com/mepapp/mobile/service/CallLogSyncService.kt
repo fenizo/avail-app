@@ -27,27 +27,58 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class CallLogSyncService : Service() {
-    
+
     private val TAG = "CallLogSyncService"
     private val CHANNEL_ID = "CallLogSyncChannel"
     private val NOTIFICATION_ID = 1001
-    
+
     private var serviceJob: Job? = null
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    
+
     private lateinit var apiService: MepApiService
     private lateinit var authRepository: AuthRepository
     private lateinit var database: AppDatabase
-    
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "Service created")
-        
+
         authRepository = AuthRepository(applicationContext)
         apiService = NetworkModule.createService<MepApiService>()
         database = AppDatabase.getDatabase(applicationContext)
-        
+
+        // Acquire WakeLock to prevent CPU from sleeping
+        acquireWakeLock()
+
         createNotificationChannel()
+    }
+
+    private fun acquireWakeLock() {
+        try {
+            val powerManager = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+            wakeLock = powerManager.newWakeLock(
+                android.os.PowerManager.PARTIAL_WAKE_LOCK,
+                "MEPApp::CallLogSyncWakeLock"
+            )
+            wakeLock?.acquire(24 * 60 * 60 * 1000L) // 24 hours max
+            Log.d(TAG, "WakeLock acquired")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to acquire WakeLock", e)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            wakeLock?.let {
+                if (it.isHeld) {
+                    it.release()
+                    Log.d(TAG, "WakeLock released")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to release WakeLock", e)
+        }
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -87,12 +118,17 @@ class CallLogSyncService : Service() {
     
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "Service destroyed, restarting...")
+        Log.d(TAG, "Service destroyed, attempting restart...")
         serviceJob?.cancel()
         serviceScope.cancel()
-        
+        releaseWakeLock()
+
         // Restart service immediately
-        sendBroadcast(Intent(this, ServiceRestartReceiver::class.java))
+        try {
+            sendBroadcast(Intent(this, ServiceRestartReceiver::class.java))
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send restart broadcast", e)
+        }
     }
     
     private fun createNotificationChannel() {
@@ -152,25 +188,17 @@ class CallLogSyncService : Service() {
     
     private suspend fun saveCallLogsToDatabase() {
         try {
-            // Get auth token
-            val token = authRepository.authToken.first()
-            if (token.isNullOrBlank()) {
+            // Get staff ID from local storage (works offline!)
+            val staffId = authRepository.userId.first()
+            if (staffId.isNullOrBlank()) {
+                Log.d(TAG, "No staff ID stored locally, skipping call log capture")
                 return
             }
-            
-            // Get staff ID
-            val staffId = try {
-                NetworkModule.setAuthToken(token)
-                apiService.getMe().id
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to fetch staff ID", e)
-                return
-            }
-            
-            // Read call logs from phone
+
+            // Read call logs from phone - THIS WORKS OFFLINE
             val callLogDao = database.callLogDao()
             val phoneCallLogs = getCallLogsFromPhone(staffId)
-            
+
             var savedCount = 0
             for (log in phoneCallLogs) {
                 // Check if already exists in database
@@ -180,11 +208,12 @@ class CallLogSyncService : Service() {
                     savedCount++
                 }
             }
-            
+
             if (savedCount > 0) {
-                Log.d(TAG, "Saved $savedCount new call logs to local database")
+                Log.d(TAG, "Saved $savedCount new call logs to local database (OFFLINE OK)")
+                updateNotification("Stored $savedCount new calls locally")
             }
-            
+
         } catch (e: Exception) {
             Log.e(TAG, "Error saving to database", e)
         }
@@ -192,21 +221,27 @@ class CallLogSyncService : Service() {
     
     private suspend fun syncDatabaseToServer() {
         try {
+            // Check network connectivity first
+            if (!isNetworkAvailable()) {
+                Log.d(TAG, "No network available - skipping server sync (local storage continues)")
+                return
+            }
+
             // Get auth token
             val token = authRepository.authToken.first()
             if (token.isNullOrBlank()) {
                 return
             }
             NetworkModule.setAuthToken(token)
-            
+
             // Get unsynced call logs from database
             val callLogDao = database.callLogDao()
             val unsyncedLogs = callLogDao.getUnsyncedCallLogs()
-            
+
             if (unsyncedLogs.isEmpty()) {
                 return
             }
-            
+
             // Convert to API format
             val callLogRequests = unsyncedLogs.map { entity ->
                 CallLogRequest(
@@ -218,20 +253,28 @@ class CallLogSyncService : Service() {
                     staffId = entity.staffId
                 )
             }
-            
+
             // Upload to backend
             apiService.logCalls(callLogRequests)
             Log.d(TAG, "Uploaded ${callLogRequests.size} call logs to server")
-            
+
             // Mark as synced
             callLogDao.markAsSynced(unsyncedLogs.map { it.id })
-            
+
             // Update notification
-            updateNotification("Last sync: ${SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())}")
-            
+            updateNotification("Synced: ${SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())} | ${unsyncedLogs.size} uploaded")
+
         } catch (e: Exception) {
-            Log.e(TAG, "Error syncing to server", e)
+            Log.e(TAG, "Error syncing to server (will retry later)", e)
+            // Don't crash - data is safe in local database
         }
+    }
+
+    private fun isNetworkAvailable(): Boolean {
+        val connectivityManager = applicationContext.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
     
     private fun getCallLogsFromPhone(staffId: String): List<CallLogEntity> {

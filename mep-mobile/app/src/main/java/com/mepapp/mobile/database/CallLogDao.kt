@@ -24,7 +24,10 @@ interface CallLogDao {
     
     @Query("SELECT * FROM call_logs ORDER BY timestamp DESC LIMIT 100")
     suspend fun getRecentCallLogs(): List<CallLogEntity>
-    
+
+    @Query("SELECT * FROM call_logs ORDER BY timestamp DESC")
+    suspend fun getAllCallLogs(): List<CallLogEntity>
+
     @Query("DELETE FROM call_logs WHERE isSynced = 1 AND timestamp < :timestamp")
     suspend fun deleteOldSyncedLogs(timestamp: String)
 }

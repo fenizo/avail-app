@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun JobListScreen(userId: String?, token: String?, onJobClick: (String) -> Unit) {
+fun JobListScreen(userId: String?, token: String?, onJobClick: (String) -> Unit, onLogsClick: () -> Unit) {
     var isApiConnected by remember { mutableStateOf(false) }
     var nextSyncIn by remember { mutableStateOf(5) }
     var isCheckingApi by remember { mutableStateOf(false) }
@@ -120,6 +120,20 @@ fun JobListScreen(userId: String?, token: String?, onJobClick: (String) -> Unit)
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.padding(end = 16.dp)
                     ) {
+                        // Call Logs Button
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF1E293B),
+                            onClick = onLogsClick,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "\uD83D\uDCDE",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                fontSize = 16.sp
+                            )
+                        }
+
                         // Sync Timer
                         Surface(
                             shape = RoundedCornerShape(12.dp),
