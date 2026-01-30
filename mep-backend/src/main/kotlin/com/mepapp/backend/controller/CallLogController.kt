@@ -62,7 +62,21 @@ class CallLogController(
     }
 
     @GetMapping
-    fun getAllLogs(): List<CallLog> = callLogRepository.findAllByOrderByTimestampDesc()
+    fun getAllLogs(): List<CallLog> {
+        val allLogs = callLogRepository.findAllByOrderByTimestampDesc()
+
+        // Deduplicate: keep only unique entries based on phoneCallId + staffId
+        val seen = mutableSetOf<String>()
+        return allLogs.filter { log ->
+            val key = "${log.phoneCallId ?: log.id}_${log.staff.id}"
+            if (seen.contains(key)) {
+                false
+            } else {
+                seen.add(key)
+                true
+            }
+        }
+    }
 
     @GetMapping("/job/{jobId}")
     fun getLogsByJob(@PathVariable jobId: UUID): List<CallLog> =
@@ -77,13 +91,34 @@ class CallLogController(
 
     @DeleteMapping("/cleanup-duplicates")
     fun cleanupDuplicates(): Map<String, Any> {
-        val countBefore = callLogRepository.count()
-        // Delete ALL call logs - mobile will re-sync with proper deduplication
-        callLogRepository.deleteAll()
+        val allLogs = callLogRepository.findAllByOrderByTimestampDesc()
+        val countBefore = allLogs.size
+
+        // Group by phoneCallId + staffId to find duplicates
+        // Keep the first (most recent) one, delete the rest
+        val seen = mutableSetOf<String>()
+        val toDelete = mutableListOf<CallLog>()
+
+        for (log in allLogs) {
+            val key = "${log.phoneCallId ?: log.id}_${log.staff.id}"
+            if (seen.contains(key)) {
+                toDelete.add(log)
+            } else {
+                seen.add(key)
+            }
+        }
+
+        // Delete duplicates
+        if (toDelete.isNotEmpty()) {
+            callLogRepository.deleteAll(toDelete)
+        }
+
         return mapOf(
             "status" to "success",
-            "totalDeleted" to countBefore,
-            "message" to "All call logs deleted. Mobile app will re-sync with deduplication."
+            "totalBefore" to countBefore,
+            "duplicatesRemoved" to toDelete.size,
+            "uniqueRemaining" to (countBefore - toDelete.size),
+            "message" to "Removed ${toDelete.size} duplicate entries, kept ${countBefore - toDelete.size} unique records."
         )
     }
 
