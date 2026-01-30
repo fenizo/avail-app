@@ -71,36 +71,15 @@ class CallLogController(
 
     @DeleteMapping("/cleanup-duplicates")
     fun cleanupDuplicates(): Map<String, Any> {
-        val allLogs = callLogRepository.findAll()
-
-        // Group by (phoneNumber, timestamp, staffId) to find duplicates
-        val grouped = allLogs.groupBy { Triple(it.phoneNumber, it.timestamp, it.staff.id) }
-
-        var deletedCount = 0
-        val idsToDelete = mutableListOf<UUID>()
-
-        for ((_, logs) in grouped) {
-            if (logs.size > 1) {
-                // Keep the first one (oldest by ID), delete the rest
-                val sortedLogs = logs.sortedBy { it.id.toString() }
-                val toDelete = sortedLogs.drop(1) // Keep first, delete rest
-                toDelete.forEach { log ->
-                    log.id?.let { idsToDelete.add(it) }
-                }
-                deletedCount += toDelete.size
-            }
-        }
-
-        // Delete duplicates
-        if (idsToDelete.isNotEmpty()) {
-            callLogRepository.deleteAllById(idsToDelete)
-        }
+        val countBefore = callLogRepository.count()
+        val deletedCount = callLogRepository.deleteDuplicates()
+        val countAfter = callLogRepository.count()
 
         return mapOf(
             "status" to "success",
-            "totalLogs" to allLogs.size,
+            "totalBefore" to countBefore,
             "duplicatesDeleted" to deletedCount,
-            "remainingLogs" to (allLogs.size - deletedCount)
+            "totalAfter" to countAfter
         )
     }
 
