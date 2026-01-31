@@ -16,8 +16,6 @@ interface CallLog {
     timestamp: string;
 }
 
-const EXCLUDED_CONTACTS_KEY = 'excludedContacts';
-
 // Normalize phone number - remove +91 or 91 prefix to get base 10-digit number
 const normalizePhone = (phone: string): string => {
     if (!phone) return phone;
@@ -60,30 +58,38 @@ const CallLogsPage = () => {
     const [showExcludeModal, setShowExcludeModal] = useState(false);
     const [excludeInput, setExcludeInput] = useState('');
 
-    // Load excluded contacts from localStorage
-    useEffect(() => {
-        const saved = localStorage.getItem(EXCLUDED_CONTACTS_KEY);
-        if (saved) {
-            setExcludedContacts(new Set(JSON.parse(saved)));
-        }
-    }, []);
-
-    // Save excluded contacts to localStorage
-    const saveExcludedContacts = (contacts: Set<string>) => {
-        localStorage.setItem(EXCLUDED_CONTACTS_KEY, JSON.stringify(Array.from(contacts)));
-        setExcludedContacts(contacts);
+    // Load excluded contacts from server
+    const fetchExcludedContacts = () => {
+        apiFetch('/api/excluded-contacts/phones')
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    setExcludedContacts(new Set(data));
+                }
+            })
+            .catch(err => console.error("Error fetching excluded contacts:", err));
     };
 
+    useEffect(() => {
+        fetchExcludedContacts();
+    }, []);
+
     const addExcludedContact = (phone: string) => {
-        const newSet = new Set(excludedContacts);
-        newSet.add(phone.trim());
-        saveExcludedContacts(newSet);
+        apiFetch('/api/excluded-contacts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phoneNumber: phone.trim() })
+        })
+            .then(() => fetchExcludedContacts())
+            .catch(err => console.error("Error adding excluded contact:", err));
     };
 
     const removeExcludedContact = (phone: string) => {
-        const newSet = new Set(excludedContacts);
-        newSet.delete(phone);
-        saveExcludedContacts(newSet);
+        apiFetch(`/api/excluded-contacts/${encodeURIComponent(phone)}`, {
+            method: 'DELETE'
+        })
+            .then(() => fetchExcludedContacts())
+            .catch(err => console.error("Error removing excluded contact:", err));
     };
 
     // August 1, 2025 cutoff date

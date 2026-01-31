@@ -3,8 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api';
 
-const EXCLUDED_CONTACTS_KEY = 'excludedContacts';
-
 // Normalize phone number - remove +91 or 91 prefix to get base 10-digit number
 const normalizePhone = (phone: string): string => {
     if (!phone) return phone;
@@ -62,16 +60,22 @@ const ReturningCustomersPage = () => {
     // August 1, 2025 cutoff date
     const AUG_2025_CUTOFF = new Date(2025, 7, 1, 0, 0, 0, 0).getTime();
 
-    // Load excluded contacts from localStorage
+    // Load excluded contacts from server
     useEffect(() => {
-        const saved = localStorage.getItem(EXCLUDED_CONTACTS_KEY);
-        if (saved) {
-            setExcludedContacts(new Set(JSON.parse(saved)));
-        }
+        apiFetch('/api/excluded-contacts/phones')
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    setExcludedContacts(new Set(data));
+                }
+            })
+            .catch(err => console.error("Error fetching excluded contacts:", err));
     }, []);
 
     useEffect(() => {
-        fetchAndAnalyze();
+        if (excludedContacts.size >= 0) {
+            fetchAndAnalyze();
+        }
     }, [minDays, excludedContacts]);
 
     const fetchAndAnalyze = () => {
