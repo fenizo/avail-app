@@ -5,6 +5,29 @@ import { apiFetch } from '../../lib/api';
 
 const EXCLUDED_CONTACTS_KEY = 'excludedContacts';
 
+// Normalize phone number - remove +91 or 91 prefix to get base 10-digit number
+const normalizePhone = (phone: string): string => {
+    if (!phone) return phone;
+    let normalized = phone.replace(/\s+/g, '').replace(/-/g, '');
+    if (normalized.startsWith('+91')) {
+        normalized = normalized.substring(3);
+    } else if (normalized.startsWith('91') && normalized.length > 10) {
+        normalized = normalized.substring(2);
+    }
+    return normalized;
+};
+
+// Check if phone is in excluded set (handles +91 variants)
+const isExcluded = (phone: string, excludedSet: Set<string>): boolean => {
+    const normalized = normalizePhone(phone);
+    for (const excluded of Array.from(excludedSet)) {
+        if (normalizePhone(excluded) === normalized) {
+            return true;
+        }
+    }
+    return false;
+};
+
 interface CallLog {
     id: string;
     staff: {
@@ -61,22 +84,23 @@ const ReturningCustomersPage = () => {
                     const filteredData = data.filter((log: CallLog) => {
                         const logTime = new Date(log.timestamp).getTime();
                         if (logTime < AUG_2025_CUTOFF) return false;
-                        if (excludedContacts.has(log.phoneNumber)) return false;
+                        if (isExcluded(log.phoneNumber, excludedContacts)) return false;
                         return true;
                     });
 
-                    // Group by phone number
+                    // Group by normalized phone number to merge +91 variants
                     const contactGroups = new Map<string, CallLog[]>();
                     filteredData.forEach((log: CallLog) => {
-                        const existing = contactGroups.get(log.phoneNumber) || [];
+                        const normalized = normalizePhone(log.phoneNumber);
+                        const existing = contactGroups.get(normalized) || [];
                         existing.push(log);
-                        contactGroups.set(log.phoneNumber, existing);
+                        contactGroups.set(normalized, existing);
                     });
 
                     // Find returning customers (called again after minDays days)
                     const returning: ReturningCustomer[] = [];
 
-                    contactGroups.forEach((logs, phoneNumber) => {
+                    contactGroups.forEach((logs, normalizedPhone) => {
                         if (logs.length < 2) return; // Need at least 2 calls
 
                         // Sort by timestamp ascending (oldest first)
@@ -108,9 +132,14 @@ const ReturningCustomersPage = () => {
                                 new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
                             );
 
+                            // Use original phone number format (prefer +91 version if exists)
+                            const displayPhone = logs.find(l => l.phoneNumber.startsWith('+91'))?.phoneNumber || logs[0].phoneNumber;
+                            // Get contact name from any log that has it
+                            const contactName = logs.find(l => l.contactName)?.contactName || null;
+
                             returning.push({
-                                phoneNumber,
-                                contactName: logs[0].contactName || null,
+                                phoneNumber: displayPhone,
+                                contactName,
                                 firstCallDate: firstCall,
                                 returnCallDate: returnCall,
                                 daysBetween: returnDiffDays,

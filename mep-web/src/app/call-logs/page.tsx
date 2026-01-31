@@ -18,6 +18,34 @@ interface CallLog {
 
 const EXCLUDED_CONTACTS_KEY = 'excludedContacts';
 
+// Normalize phone number - remove +91 or 91 prefix to get base 10-digit number
+const normalizePhone = (phone: string): string => {
+    if (!phone) return phone;
+    let normalized = phone.replace(/\s+/g, '').replace(/-/g, '');
+    if (normalized.startsWith('+91')) {
+        normalized = normalized.substring(3);
+    } else if (normalized.startsWith('91') && normalized.length > 10) {
+        normalized = normalized.substring(2);
+    }
+    return normalized;
+};
+
+// Check if two phone numbers are the same (with or without +91)
+const isSamePhone = (phone1: string, phone2: string): boolean => {
+    return normalizePhone(phone1) === normalizePhone(phone2);
+};
+
+// Check if phone is in excluded set (handles +91 variants)
+const isExcluded = (phone: string, excludedSet: Set<string>): boolean => {
+    const normalized = normalizePhone(phone);
+    for (const excluded of Array.from(excludedSet)) {
+        if (normalizePhone(excluded) === normalized) {
+            return true;
+        }
+    }
+    return false;
+};
+
 const CallLogsPage = () => {
     const [rawLogs, setRawLogs] = useState<CallLog[]>([]);
     const [displayLogs, setDisplayLogs] = useState<CallLog[]>([]);
@@ -114,8 +142,8 @@ const CallLogsPage = () => {
         yesterday.setHours(0, 0, 0, 0);
 
         filtered = filtered.filter(log => {
-            // Exclude filtered contacts
-            if (excludedContacts.has(log.phoneNumber)) return false;
+            // Exclude filtered contacts (check with normalization)
+            if (isExcluded(log.phoneNumber, excludedContacts)) return false;
 
             const logDate = new Date(log.timestamp);
             logDate.setHours(0, 0, 0, 0);
@@ -137,13 +165,15 @@ const CallLogsPage = () => {
 
         filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
+        // Deduplicate using normalized phone numbers to merge +91 variants
         const deduplicated: CallLog[] = [];
-        const seenNumbers = new Set<string>();
+        const seenNormalized = new Set<string>();
 
         filtered.forEach(log => {
-            if (!seenNumbers.has(log.phoneNumber)) {
+            const normalized = normalizePhone(log.phoneNumber);
+            if (!seenNormalized.has(normalized)) {
                 deduplicated.push(log);
-                seenNumbers.add(log.phoneNumber);
+                seenNormalized.add(normalized);
             }
         });
 
@@ -151,8 +181,9 @@ const CallLogsPage = () => {
     };
 
     const getContactLogs = (phoneNumber: string): CallLog[] => {
+        const normalized = normalizePhone(phoneNumber);
         return rawLogs
-            .filter(log => log.phoneNumber === phoneNumber)
+            .filter(log => normalizePhone(log.phoneNumber) === normalized)
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     };
 
@@ -365,11 +396,11 @@ const CallLogsPage = () => {
                     today.setHours(0, 0, 0, 0);
                     const todayContacts = new Set(
                         rawLogs.filter(log => {
-                            if (excludedContacts.has(log.phoneNumber)) return false;
+                            if (isExcluded(log.phoneNumber, excludedContacts)) return false;
                             const logDate = new Date(log.timestamp);
                             logDate.setHours(0, 0, 0, 0);
                             return logDate.getTime() === today.getTime();
-                        }).map(log => log.phoneNumber)
+                        }).map(log => normalizePhone(log.phoneNumber))
                     );
                     return (
                         <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
@@ -386,11 +417,11 @@ const CallLogsPage = () => {
                     yesterday.setHours(0, 0, 0, 0);
                     const yesterdayContacts = new Set(
                         rawLogs.filter(log => {
-                            if (excludedContacts.has(log.phoneNumber)) return false;
+                            if (isExcluded(log.phoneNumber, excludedContacts)) return false;
                             const logDate = new Date(log.timestamp);
                             logDate.setHours(0, 0, 0, 0);
                             return logDate.getTime() === yesterday.getTime();
-                        }).map(log => log.phoneNumber)
+                        }).map(log => normalizePhone(log.phoneNumber))
                     );
                     return (
                         <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
