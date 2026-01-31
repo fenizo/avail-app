@@ -24,16 +24,26 @@ class CallLogController(
     @PostMapping
     fun logCall(@RequestBody request: CallLogRequest): CallLog {
         val staffUUID = UUID.fromString(request.staffId)
+        val timestamp = request.timestamp ?: LocalDateTime.now()
 
-        // Check for duplicate using phoneCallId (if provided)
+        // Check 1: Duplicate check using phoneCallId (if provided)
         if (!request.phoneCallId.isNullOrBlank()) {
-            if (callLogRepository.existsByPhoneCallIdAndStaffId(request.phoneCallId, staffUUID)) {
-                // Return existing - don't create duplicate
-                val existing = callLogRepository.findByStaffIdOrderByTimestampDesc(staffUUID)
-                    .find { it.phoneCallId == request.phoneCallId }
-                if (existing != null) {
-                    return existing
-                }
+            val existing = callLogRepository.findByPhoneCallIdAndStaffId(request.phoneCallId, staffUUID)
+            if (existing != null) {
+                return existing // Return existing - don't create duplicate
+            }
+        }
+
+        // Check 2: Duplicate check using phoneNumber + timestamp + staffId
+        // This catches duplicates even when phoneCallId is null or different
+        if (callLogRepository.existsByPhoneNumberAndTimestampAndStaffId(request.phoneNumber, timestamp, staffUUID)) {
+            // Find and return existing record
+            val existingLogs = callLogRepository.findByStaffIdOrderByTimestampDesc(staffUUID)
+            val existing = existingLogs.find {
+                it.phoneNumber == request.phoneNumber && it.timestamp == timestamp
+            }
+            if (existing != null) {
+                return existing
             }
         }
 
@@ -50,7 +60,7 @@ class CallLogController(
             duration = request.duration,
             callType = request.callType,
             contactName = request.contactName,
-            timestamp = request.timestamp ?: LocalDateTime.now(),
+            timestamp = timestamp,
             phoneCallId = request.phoneCallId
         )
         return callLogRepository.save(callLog)
@@ -65,10 +75,10 @@ class CallLogController(
     fun getAllLogs(): List<CallLog> {
         val allLogs = callLogRepository.findAllByOrderByTimestampDesc()
 
-        // Deduplicate: keep only unique entries based on phoneCallId + staffId
+        // Deduplicate: keep only unique entries based on phoneNumber + timestamp + staffId
         val seen = mutableSetOf<String>()
         return allLogs.filter { log ->
-            val key = "${log.phoneCallId ?: log.id}_${log.staff.id}"
+            val key = "${log.phoneNumber}_${log.timestamp}_${log.staff.id}"
             if (seen.contains(key)) {
                 false
             } else {
@@ -94,13 +104,13 @@ class CallLogController(
         val allLogs = callLogRepository.findAllByOrderByTimestampDesc()
         val countBefore = allLogs.size
 
-        // Group by phoneCallId + staffId to find duplicates
+        // Group by phoneNumber + timestamp + staffId to find duplicates
         // Keep the first (most recent) one, delete the rest
         val seen = mutableSetOf<String>()
         val toDelete = mutableListOf<CallLog>()
 
         for (log in allLogs) {
-            val key = "${log.phoneCallId ?: log.id}_${log.staff.id}"
+            val key = "${log.phoneNumber}_${log.timestamp}_${log.staff.id}"
             if (seen.contains(key)) {
                 toDelete.add(log)
             } else {
