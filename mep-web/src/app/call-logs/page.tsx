@@ -16,6 +16,8 @@ interface CallLog {
     timestamp: string;
 }
 
+const EXCLUDED_CONTACTS_KEY = 'excludedContacts';
+
 const CallLogsPage = () => {
     const [rawLogs, setRawLogs] = useState<CallLog[]>([]);
     const [displayLogs, setDisplayLogs] = useState<CallLog[]>([]);
@@ -26,9 +28,38 @@ const CallLogsPage = () => {
     const [staffList, setStaffList] = useState<{ id: string, name: string }[]>([]);
     const [selectedStaff, setSelectedStaff] = useState<string>('all');
     const [expandedContact, setExpandedContact] = useState<string | null>(null);
+    const [excludedContacts, setExcludedContacts] = useState<Set<string>>(new Set());
+    const [showExcludeModal, setShowExcludeModal] = useState(false);
+    const [excludeInput, setExcludeInput] = useState('');
+
+    // Load excluded contacts from localStorage
+    useEffect(() => {
+        const saved = localStorage.getItem(EXCLUDED_CONTACTS_KEY);
+        if (saved) {
+            setExcludedContacts(new Set(JSON.parse(saved)));
+        }
+    }, []);
+
+    // Save excluded contacts to localStorage
+    const saveExcludedContacts = (contacts: Set<string>) => {
+        localStorage.setItem(EXCLUDED_CONTACTS_KEY, JSON.stringify([...contacts]));
+        setExcludedContacts(contacts);
+    };
+
+    const addExcludedContact = (phone: string) => {
+        const newSet = new Set(excludedContacts);
+        newSet.add(phone.trim());
+        saveExcludedContacts(newSet);
+    };
+
+    const removeExcludedContact = (phone: string) => {
+        const newSet = new Set(excludedContacts);
+        newSet.delete(phone);
+        saveExcludedContacts(newSet);
+    };
 
     // August 1, 2025 cutoff date
-    const AUG_2025_CUTOFF = new Date(2025, 7, 1, 0, 0, 0, 0).getTime(); // Month is 0-indexed, so 7 = August
+    const AUG_2025_CUTOFF = new Date(2025, 7, 1, 0, 0, 0, 0).getTime();
 
     const fetchLogs = () => {
         setLoading(true);
@@ -36,7 +67,6 @@ const CallLogsPage = () => {
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
-                    // Filter out logs before August 1, 2025
                     const filteredData = data.filter((log: CallLog) => {
                         const logTime = new Date(log.timestamp).getTime();
                         return logTime >= AUG_2025_CUTOFF;
@@ -63,23 +93,19 @@ const CallLogsPage = () => {
 
     useEffect(() => {
         fetchLogs();
-
-        // Auto-refresh every 5 seconds to show live sync progress
         const interval = setInterval(() => {
             fetchLogs();
         }, 5000);
-
         return () => clearInterval(interval);
     }, []);
 
     useEffect(() => {
         processLogs();
-    }, [rawLogs, filterMode, customDate, selectedStaff]);
+    }, [rawLogs, filterMode, customDate, selectedStaff, excludedContacts]);
 
     const processLogs = () => {
         let filtered = [...rawLogs];
 
-        // Date Filtering
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -88,6 +114,9 @@ const CallLogsPage = () => {
         yesterday.setHours(0, 0, 0, 0);
 
         filtered = filtered.filter(log => {
+            // Exclude filtered contacts
+            if (excludedContacts.has(log.phoneNumber)) return false;
+
             const logDate = new Date(log.timestamp);
             logDate.setHours(0, 0, 0, 0);
 
@@ -106,7 +135,6 @@ const CallLogsPage = () => {
             return (log as any).staff?.id === selectedStaff;
         });
 
-        // Sort and deduplicate by phone number (keep latest)
         filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         const deduplicated: CallLog[] = [];
@@ -122,22 +150,59 @@ const CallLogsPage = () => {
         setDisplayLogs(deduplicated);
     };
 
-    // Get all logs for a specific phone number
     const getContactLogs = (phoneNumber: string): CallLog[] => {
         return rawLogs
             .filter(log => log.phoneNumber === phoneNumber)
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     };
 
+    const formatDuration = (duration: string) => {
+        const secs = parseInt(duration);
+        if (secs >= 60) {
+            return `${Math.floor(secs / 60)}m ${secs % 60}s`;
+        }
+        return `${secs}s`;
+    };
+
     return (
-        <div className="animate-enter">
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+        <div className="animate-enter" style={{ padding: '0 8px' }}>
+            {/* Header - Mobile Responsive */}
+            <header style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+                marginBottom: '24px'
+            }}>
                 <div>
-                    <h2 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '4px' }}>Call Logs</h2>
-                    <p style={{ color: '#64748b' }}>Monitor and filter field staff communication.</p>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '4px' }}>Call Logs</h2>
+                    <p style={{ color: '#64748b', fontSize: '0.875rem' }}>Monitor field staff communication</p>
                 </div>
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                    {lastUpdated && <span style={{ fontSize: '0.8rem', color: '#374151' }}>Last updated: {lastUpdated.toLocaleTimeString()}</span>}
+                <div style={{
+                    display: 'flex',
+                    gap: '8px',
+                    alignItems: 'center',
+                    flexWrap: 'wrap'
+                }}>
+                    {lastUpdated && (
+                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                            Updated: {lastUpdated.toLocaleTimeString()}
+                        </span>
+                    )}
+                    <button
+                        onClick={() => setShowExcludeModal(true)}
+                        style={{
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid #ef4444',
+                            color: '#ef4444',
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontWeight: 500,
+                            fontSize: '0.8rem'
+                        }}
+                    >
+                        Exclude ({excludedContacts.size})
+                    </button>
                     <button
                         onClick={() => {
                             window.open('https://staging.maduraielectriciansandplumbers.com/api/call-logs/export/excel', '_blank');
@@ -146,163 +211,230 @@ const CallLogsPage = () => {
                             background: 'linear-gradient(135deg, #10b981, #059669)',
                             border: 'none',
                             color: 'white',
-                            padding: '10px 20px',
+                            padding: '8px 12px',
                             borderRadius: '8px',
                             cursor: 'pointer',
-                            fontWeight: 600,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px'
+                            fontWeight: 500,
+                            fontSize: '0.8rem'
                         }}
                     >
-                        📥 Download Excel
+                        Excel
                     </button>
-                    <button onClick={fetchLogs} disabled={loading} className="btn-primary">
-                        {loading ? 'Updating...' : 'Refresh Logs'}
+                    <button onClick={fetchLogs} disabled={loading} className="btn-primary" style={{ padding: '8px 12px', fontSize: '0.8rem' }}>
+                        {loading ? '...' : 'Refresh'}
                     </button>
                 </div>
             </header>
 
-            {/* Stats Cards - Contact Count & Monthly Breakdown */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                {/* Sync Status Card */}
-                <div className="glass-card" style={{ padding: '20px', background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.1), rgba(14, 165, 233, 0.05))' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                        <div style={{ fontSize: '0.875rem', fontWeight: 500, color: '#38bdf8' }}>Sync Status</div>
-                        {loading && (
-                            <div style={{
-                                width: '12px',
-                                height: '12px',
-                                borderRadius: '50%',
-                                background: '#38bdf8',
-                                animation: 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite'
-                            }}></div>
-                        )}
-                    </div>
-                    {lastUpdated ? (
-                        <>
-                            <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '4px' }}>Last Synced</div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#1a1a1a' }}>
-                                {lastUpdated.toLocaleTimeString()}
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '8px' }}>
-                                {loading ? '🔄 Checking for new logs...' : '✅ Up to date'}
-                            </div>
-                        </>
-                    ) : (
-                        <div style={{ fontSize: '0.875rem', color: '#64748b' }}>Connecting...</div>
-                    )}
-                </div>
+            {/* Exclude Modal */}
+            {showExcludeModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000,
+                    padding: '16px'
+                }}>
+                    <div style={{
+                        background: '#1e293b',
+                        borderRadius: '16px',
+                        padding: '24px',
+                        width: '100%',
+                        maxWidth: '400px',
+                        maxHeight: '80vh',
+                        overflow: 'auto'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'white' }}>Excluded Contacts</h3>
+                            <button
+                                onClick={() => setShowExcludeModal(false)}
+                                style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1.5rem', cursor: 'pointer' }}
+                            >
+                                ×
+                            </button>
+                        </div>
 
-                {/* Today's Unique Contacts */}
+                        {/* Add new exclusion */}
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                            <input
+                                type="text"
+                                placeholder="Phone number to exclude"
+                                value={excludeInput}
+                                onChange={(e) => setExcludeInput(e.target.value)}
+                                style={{
+                                    flex: 1,
+                                    padding: '10px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #374151',
+                                    background: '#0f172a',
+                                    color: 'white',
+                                    fontSize: '0.9rem'
+                                }}
+                            />
+                            <button
+                                onClick={() => {
+                                    if (excludeInput.trim()) {
+                                        addExcludedContact(excludeInput);
+                                        setExcludeInput('');
+                                    }
+                                }}
+                                style={{
+                                    background: '#ef4444',
+                                    border: 'none',
+                                    color: 'white',
+                                    padding: '10px 16px',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontWeight: 500
+                                }}
+                            >
+                                Add
+                            </button>
+                        </div>
+
+                        {/* List of excluded contacts */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {[...excludedContacts].length === 0 ? (
+                                <p style={{ color: '#64748b', textAlign: 'center', padding: '16px' }}>
+                                    No excluded contacts
+                                </p>
+                            ) : (
+                                [...excludedContacts].map(phone => (
+                                    <div
+                                        key={phone}
+                                        style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            padding: '10px 12px',
+                                            background: 'rgba(239, 68, 68, 0.1)',
+                                            borderRadius: '8px',
+                                            border: '1px solid rgba(239, 68, 68, 0.3)'
+                                        }}
+                                    >
+                                        <span style={{ color: 'white' }}>{phone}</span>
+                                        <button
+                                            onClick={() => removeExcludedContact(phone)}
+                                            style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                color: '#22c55e',
+                                                cursor: 'pointer',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 500
+                                            }}
+                                        >
+                                            Restore
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Stats Cards - Mobile Grid */}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '12px',
+                marginBottom: '20px'
+            }}>
+                {/* Today's Contacts */}
                 {(() => {
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
                     const todayContacts = new Set(
                         rawLogs.filter(log => {
+                            if (excludedContacts.has(log.phoneNumber)) return false;
                             const logDate = new Date(log.timestamp);
                             logDate.setHours(0, 0, 0, 0);
                             return logDate.getTime() === today.getTime();
                         }).map(log => log.phoneNumber)
                     );
                     return (
-                        <div className="glass-card" style={{ padding: '20px', textAlign: 'center', background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(22, 163, 74, 0.05))' }}>
-                            <div style={{ fontSize: '0.875rem', color: '#22c55e', marginBottom: '8px', fontWeight: 500 }}>Today's Contacts</div>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 700, color: '#22c55e' }}>{todayContacts.size}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>Unique numbers</div>
+                        <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.75rem', color: '#22c55e', marginBottom: '4px', fontWeight: 500 }}>Today</div>
+                            <div style={{ fontSize: '2rem', fontWeight: 700, color: '#22c55e' }}>{todayContacts.size}</div>
                         </div>
                     );
                 })()}
 
-                {/* Yesterday's Unique Contacts */}
+                {/* Yesterday's Contacts */}
                 {(() => {
                     const yesterday = new Date();
                     yesterday.setDate(yesterday.getDate() - 1);
                     yesterday.setHours(0, 0, 0, 0);
                     const yesterdayContacts = new Set(
                         rawLogs.filter(log => {
+                            if (excludedContacts.has(log.phoneNumber)) return false;
                             const logDate = new Date(log.timestamp);
                             logDate.setHours(0, 0, 0, 0);
                             return logDate.getTime() === yesterday.getTime();
                         }).map(log => log.phoneNumber)
                     );
                     return (
-                        <div className="glass-card" style={{ padding: '20px', textAlign: 'center', background: 'linear-gradient(135deg, rgba(251, 146, 60, 0.1), rgba(234, 88, 12, 0.05))' }}>
-                            <div style={{ fontSize: '0.875rem', color: '#f97316', marginBottom: '8px', fontWeight: 500 }}>Yesterday's Contacts</div>
-                            <div style={{ fontSize: '2.5rem', fontWeight: 700, color: '#f97316' }}>{yesterdayContacts.size}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>Unique numbers</div>
+                        <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.75rem', color: '#f97316', marginBottom: '4px', fontWeight: 500 }}>Yesterday</div>
+                            <div style={{ fontSize: '2rem', fontWeight: 700, color: '#f97316' }}>{yesterdayContacts.size}</div>
                         </div>
                     );
                 })()}
 
-                {/* Total Contacts Card */}
-                <div className="glass-card" style={{ padding: '20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '8px' }}>Total Unique Contacts</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: 700, color: '#38bdf8' }}>{displayLogs.length}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
-                        {filterMode === 'all' ? 'All time' : filterMode === 'today' ? 'Today' : filterMode === 'yesterday' ? 'Yesterday' : 'Custom date'}
-                    </div>
+                {/* Total Contacts */}
+                <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#38bdf8', marginBottom: '4px', fontWeight: 500 }}>Total</div>
+                    <div style={{ fontSize: '2rem', fontWeight: 700, color: '#38bdf8' }}>{displayLogs.length}</div>
                 </div>
 
-                {/* Monthly Breakdown */}
-                {filterMode === 'all' && (() => {
-                    // Group logs by month
-                    const monthlyData: { [key: string]: number } = {};
-                    rawLogs.forEach(log => {
-                        const date = new Date(log.timestamp);
-                        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                        monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
-                    });
-
-                    // Get last 3 months
-                    const sortedMonths = Object.keys(monthlyData).sort().reverse().slice(0, 3);
-
-                    return sortedMonths.map(monthKey => {
-                        const [year, month] = monthKey.split('-');
-                        const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString('default', { month: 'short', year: 'numeric' });
-
-                        return (
-                            <div key={monthKey} className="glass-card" style={{ padding: '20px', textAlign: 'center' }}>
-                                <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '8px' }}>{monthName}</div>
-                                <div style={{ fontSize: '2rem', fontWeight: 700, color: '#10b981' }}>{monthlyData[monthKey]}</div>
-                                <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>calls logged</div>
-                            </div>
-                        );
-                    });
-                })()}
+                {/* Sync Status */}
+                <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Status</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: loading ? '#38bdf8' : '#22c55e' }}>
+                        {loading ? 'Syncing...' : 'Live'}
+                    </div>
+                </div>
             </div>
 
+            {/* Filter Bar - Mobile Scrollable */}
+            <div className="glass-card" style={{
+                padding: '12px',
+                marginBottom: '16px',
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch'
+            }}>
+                <div style={{
+                    display: 'flex',
+                    gap: '8px',
+                    alignItems: 'center',
+                    minWidth: 'max-content'
+                }}>
+                    <button
+                        onClick={() => setFilterMode('all')}
+                        style={filterStyle(filterMode === 'all')}
+                    >
+                        All
+                    </button>
+                    <button
+                        onClick={() => setFilterMode('today')}
+                        style={filterStyle(filterMode === 'today')}
+                    >
+                        Today
+                    </button>
+                    <button
+                        onClick={() => setFilterMode('yesterday')}
+                        style={filterStyle(filterMode === 'yesterday')}
+                    >
+                        Yesterday
+                    </button>
 
-            {/* Filter Bar */}
-            <div className="glass-card" style={{ padding: '16px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '0.9rem', color: '#64748b', marginRight: '8px' }}>Filters:</span>
-
-                <button
-                    onClick={() => setFilterMode('all')}
-                    className={`btn-filter ${filterMode === 'all' ? 'active' : ''}`}
-                    style={filterStyle(filterMode === 'all')}
-                >
-                    All Logs
-                </button>
-
-                <button
-                    onClick={() => setFilterMode('today')}
-                    className={`btn-filter ${filterMode === 'today' ? 'active' : ''}`}
-                    style={filterStyle(filterMode === 'today')}
-                >
-                    Today
-                </button>
-
-                <button
-                    onClick={() => setFilterMode('yesterday')}
-                    className={`btn-filter ${filterMode === 'yesterday' ? 'active' : ''}`}
-                    style={filterStyle(filterMode === 'yesterday')}
-                >
-                    Yesterday
-                </button>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '12px' }}>
-                    <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Staff:</span>
                     <select
                         value={selectedStaff}
                         onChange={(e) => setSelectedStaff(e.target.value)}
@@ -311,18 +443,15 @@ const CallLogsPage = () => {
                             border: '1px solid var(--card-border)',
                             borderRadius: '6px',
                             color: 'white',
-                            padding: '6px 10px',
-                            fontSize: '0.85rem',
+                            padding: '6px 8px',
+                            fontSize: '0.8rem',
                             outline: 'none'
                         }}
                     >
                         <option value="all">All Staff</option>
                         {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
-                </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
-                    <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Custom Date:</span>
                     <input
                         type="date"
                         value={customDate}
@@ -335,23 +464,23 @@ const CallLogsPage = () => {
                             border: '1px solid var(--card-border)',
                             borderRadius: '6px',
                             color: 'white',
-                            padding: '6px 10px',
-                            fontSize: '0.85rem',
+                            padding: '6px 8px',
+                            fontSize: '0.8rem',
                             outline: 'none'
                         }}
                     />
                 </div>
             </div>
 
-            {/* Contact Cards */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Contact Cards - Mobile Optimized */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {loading && displayLogs.length === 0 ? (
-                    <div className="glass-card" style={{ padding: '48px', textAlign: 'center', color: '#374151' }}>
-                        Fetching call history...
+                    <div className="glass-card" style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>
+                        Loading...
                     </div>
                 ) : displayLogs.length === 0 ? (
-                    <div className="glass-card" style={{ padding: '48px', textAlign: 'center', color: '#374151' }}>
-                        No call logs found for this filter.
+                    <div className="glass-card" style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>
+                        No call logs found
                     </div>
                 ) : (
                     displayLogs.map((log) => {
@@ -361,115 +490,167 @@ const CallLogsPage = () => {
 
                         return (
                             <div key={log.phoneNumber} className="glass-card" style={{ overflow: 'hidden' }}>
-                                {/* Contact Header - Clickable */}
+                                {/* Contact Header */}
                                 <div
                                     onClick={() => setExpandedContact(isExpanded ? null : log.phoneNumber)}
                                     style={{
-                                        padding: '20px 24px',
+                                        padding: '14px 16px',
                                         cursor: 'pointer',
-                                        transition: 'background 0.2s',
-                                        background: isExpanded ? 'rgba(56, 189, 248, 0.05)' : 'transparent',
+                                        background: isExpanded ? 'rgba(56, 189, 248, 0.05)' : 'transparent'
+                                    }}
+                                >
+                                    {/* Top Row: Name + Exclude Button */}
+                                    <div style={{
                                         display: 'flex',
                                         justifyContent: 'space-between',
-                                        alignItems: 'center'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.background = isExpanded ? 'rgba(56, 189, 248, 0.05)' : 'transparent'}
-                                >
-                                    <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flex: 1 }}>
-                                        {/* Contact Name/Number */}
+                                        alignItems: 'flex-start',
+                                        marginBottom: '8px'
+                                    }}>
                                         <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#1a1a1a', marginBottom: '4px' }}>
+                                            <div style={{
+                                                fontSize: '1rem',
+                                                fontWeight: 600,
+                                                color: '#1a1a1a',
+                                                marginBottom: '2px'
+                                            }}>
                                                 {log.contactName || log.phoneNumber}
                                             </div>
                                             {log.contactName && (
-                                                <div style={{ fontSize: '0.875rem', color: '#38bdf8' }}>{log.phoneNumber}</div>
+                                                <div style={{ fontSize: '0.8rem', color: '#38bdf8' }}>
+                                                    {log.phoneNumber}
+                                                </div>
                                             )}
                                         </div>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                addExcludedContact(log.phoneNumber);
+                                            }}
+                                            style={{
+                                                background: 'rgba(239, 68, 68, 0.1)',
+                                                border: 'none',
+                                                color: '#ef4444',
+                                                padding: '4px 8px',
+                                                borderRadius: '4px',
+                                                cursor: 'pointer',
+                                                fontSize: '0.7rem',
+                                                fontWeight: 500
+                                            }}
+                                        >
+                                            Exclude
+                                        </button>
+                                    </div>
 
-                                        {/* Stats */}
-                                        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                                            <div style={{ textAlign: 'center' }}>
-                                                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '2px' }}>Total Calls</div>
-                                                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8' }}>{totalCalls}</div>
-                                            </div>
-
-                                            <div style={{ textAlign: 'center' }}>
-                                                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '2px' }}>Last Call Date</div>
-                                                <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                                                    {new Date(log.timestamp).toLocaleDateString()}
-                                                </div>
-                                            </div>
-
-                                            <div style={{ textAlign: 'center' }}>
-                                                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '2px' }}>Last Call Time</div>
-                                                <div style={{ fontSize: '0.875rem', fontWeight: 500, color: '#38bdf8' }}>
-                                                    {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </div>
-                                            </div>
-
-                                            <div style={{ textAlign: 'center' }}>
-                                                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '2px' }}>Duration</div>
-                                                <div style={{ fontSize: '0.875rem', fontWeight: 500, color: '#10b981' }}>
-                                                    {parseInt(log.duration) >= 60
-                                                        ? `${Math.floor(parseInt(log.duration) / 60)}m ${parseInt(log.duration) % 60}s`
-                                                        : `${log.duration}s`
-                                                    }
-                                                </div>
-                                            </div>
-
-                                            <div style={{ textAlign: 'center' }}>
-                                                <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '2px' }}>Staff</div>
-                                                <div style={{ fontSize: '0.875rem', fontWeight: 500 }}>{log.staff?.name || 'Admin'}</div>
+                                    {/* Stats Row - Mobile Optimized */}
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(4, 1fr)',
+                                        gap: '8px',
+                                        marginBottom: '8px'
+                                    }}>
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Calls</div>
+                                            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#38bdf8' }}>{totalCalls}</div>
+                                        </div>
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Last</div>
+                                            <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#1a1a1a' }}>
+                                                {new Date(log.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                             </div>
                                         </div>
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Time</div>
+                                            <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#38bdf8' }}>
+                                                {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </div>
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Duration</div>
+                                            <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#10b981' }}>
+                                                {formatDuration(log.duration)}
+                                            </div>
+                                        </div>
+                                    </div>
 
-                                        {/* Expand Icon */}
-                                        <div style={{ fontSize: '1.5rem', color: '#38bdf8', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                                    {/* Staff + Expand */}
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center'
+                                    }}>
+                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                            Staff: <span style={{ color: '#1a1a1a', fontWeight: 500 }}>{log.staff?.name || 'Admin'}</span>
+                                        </span>
+                                        <span style={{
+                                            fontSize: '0.8rem',
+                                            color: '#38bdf8',
+                                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                            transition: 'transform 0.2s'
+                                        }}>
                                             ▼
-                                        </div>
+                                        </span>
                                     </div>
                                 </div>
 
                                 {/* Expanded Call History */}
                                 {isExpanded && (
-                                    <div style={{ borderTop: '1px solid var(--card-border)', padding: '16px 24px', background: 'rgba(0, 0, 0, 0.2)' }}>
-                                        <div style={{ fontSize: '0.875rem', color: '#64748b', marginBottom: '16px', fontWeight: 500 }}>
-                                            Call History ({totalCalls} calls)
+                                    <div style={{
+                                        borderTop: '1px solid var(--card-border)',
+                                        padding: '12px 16px',
+                                        background: 'rgba(0, 0, 0, 0.2)'
+                                    }}>
+                                        <div style={{
+                                            fontSize: '0.8rem',
+                                            color: '#64748b',
+                                            marginBottom: '12px'
+                                        }}>
+                                            History ({totalCalls} calls)
                                         </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                            {contactLogs.map((callLog, index) => (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            {contactLogs.map((callLog) => (
                                                 <div
                                                     key={callLog.id}
                                                     style={{
-                                                        padding: '12px 16px',
+                                                        padding: '10px 12px',
                                                         background: 'rgba(255, 255, 255, 0.02)',
-                                                        borderRadius: '8px',
+                                                        borderRadius: '6px',
+                                                        borderLeft: `3px solid ${
+                                                            callLog.callType === 'OUTGOING' ? '#38bdf8' :
+                                                            callLog.callType === 'INCOMING' ? '#22c55e' : '#ef4444'
+                                                        }`
+                                                    }}
+                                                >
+                                                    <div style={{
                                                         display: 'flex',
                                                         justifyContent: 'space-between',
                                                         alignItems: 'center',
-                                                        borderLeft: `3px solid ${callLog.callType === 'OUTGOING' ? '#38bdf8' : callLog.callType === 'INCOMING' ? '#22c55e' : '#ef4444'}`
-                                                    }}
-                                                >
-                                                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flex: 1 }}>
+                                                        flexWrap: 'wrap',
+                                                        gap: '8px'
+                                                    }}>
                                                         <span style={{
-                                                            padding: '4px 10px',
-                                                            borderRadius: '6px',
-                                                            fontSize: '0.75rem',
+                                                            padding: '2px 8px',
+                                                            borderRadius: '4px',
+                                                            fontSize: '0.7rem',
                                                             fontWeight: 600,
-                                                            background: callLog.callType === 'OUTGOING' ? 'rgba(56, 189, 248, 0.15)' : callLog.callType === 'INCOMING' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                                            color: callLog.callType === 'OUTGOING' ? '#38bdf8' : callLog.callType === 'INCOMING' ? '#22c55e' : '#ef4444'
+                                                            background: callLog.callType === 'OUTGOING'
+                                                                ? 'rgba(56, 189, 248, 0.15)'
+                                                                : callLog.callType === 'INCOMING'
+                                                                    ? 'rgba(34, 197, 94, 0.15)'
+                                                                    : 'rgba(239, 68, 68, 0.15)',
+                                                            color: callLog.callType === 'OUTGOING'
+                                                                ? '#38bdf8'
+                                                                : callLog.callType === 'INCOMING'
+                                                                    ? '#22c55e'
+                                                                    : '#ef4444'
                                                         }}>
                                                             {callLog.callType}
                                                         </span>
-
-                                                        <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
+                                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
                                                             {new Date(callLog.timestamp).toLocaleString()}
-                                                        </div>
-
-                                                        <div style={{ fontSize: '0.875rem', color: '#64748b' }}>
-                                                            Duration: {callLog.duration}s
-                                                        </div>
+                                                        </span>
+                                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                                            {formatDuration(callLog.duration)}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             ))}
@@ -485,16 +666,16 @@ const CallLogsPage = () => {
     );
 };
 
-// Simple helper for button styles
 const filterStyle = (isActive: boolean): React.CSSProperties => ({
-    padding: '8px 16px',
-    borderRadius: '8px',
-    fontSize: '0.85rem',
+    padding: '6px 12px',
+    borderRadius: '6px',
+    fontSize: '0.8rem',
     cursor: 'pointer',
     border: isActive ? '1px solid var(--primary)' : '1px solid var(--card-border)',
     background: isActive ? 'rgba(56, 189, 248, 0.1)' : 'transparent',
     color: isActive ? 'var(--primary)' : '#64748b',
-    transition: 'all 0.2s'
+    transition: 'all 0.2s',
+    whiteSpace: 'nowrap'
 });
 
 export default CallLogsPage;
