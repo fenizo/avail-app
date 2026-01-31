@@ -42,7 +42,7 @@ const CallLogsPage = () => {
 
     // Save excluded contacts to localStorage
     const saveExcludedContacts = (contacts: Set<string>) => {
-        localStorage.setItem(EXCLUDED_CONTACTS_KEY, JSON.stringify([...contacts]));
+        localStorage.setItem(EXCLUDED_CONTACTS_KEY, JSON.stringify(Array.from(contacts)));
         setExcludedContacts(contacts);
     };
 
@@ -300,12 +300,12 @@ const CallLogsPage = () => {
 
                         {/* List of excluded contacts */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {[...excludedContacts].length === 0 ? (
+                            {Array.from(excludedContacts).length === 0 ? (
                                 <p style={{ color: '#64748b', textAlign: 'center', padding: '16px' }}>
                                     No excluded contacts
                                 </p>
                             ) : (
-                                [...excludedContacts].map(phone => (
+                                Array.from(excludedContacts).map(phone => (
                                     <div
                                         key={phone}
                                         style={{
