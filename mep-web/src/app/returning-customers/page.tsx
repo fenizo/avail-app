@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api';
 
+const EXCLUDED_CONTACTS_KEY = 'excludedContacts';
+
 interface CallLog {
     id: string;
     staff: {
@@ -24,19 +26,30 @@ interface ReturningCustomer {
     daysBetween: number;
     totalCalls: number;
     staffName: string;
+    callHistory: CallLog[];
 }
 
 const ReturningCustomersPage = () => {
     const [returningCustomers, setReturningCustomers] = useState<ReturningCustomer[]>([]);
     const [loading, setLoading] = useState(true);
     const [minDays, setMinDays] = useState(2);
+    const [excludedContacts, setExcludedContacts] = useState<Set<string>>(new Set());
+    const [expandedContact, setExpandedContact] = useState<string | null>(null);
 
     // August 1, 2025 cutoff date
     const AUG_2025_CUTOFF = new Date(2025, 7, 1, 0, 0, 0, 0).getTime();
 
+    // Load excluded contacts from localStorage
+    useEffect(() => {
+        const saved = localStorage.getItem(EXCLUDED_CONTACTS_KEY);
+        if (saved) {
+            setExcludedContacts(new Set(JSON.parse(saved)));
+        }
+    }, []);
+
     useEffect(() => {
         fetchAndAnalyze();
-    }, [minDays]);
+    }, [minDays, excludedContacts]);
 
     const fetchAndAnalyze = () => {
         setLoading(true);
@@ -44,10 +57,12 @@ const ReturningCustomersPage = () => {
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
-                    // Filter logs after Aug 2025
+                    // Filter logs after Aug 2025 and exclude filtered contacts
                     const filteredData = data.filter((log: CallLog) => {
                         const logTime = new Date(log.timestamp).getTime();
-                        return logTime >= AUG_2025_CUTOFF;
+                        if (logTime < AUG_2025_CUTOFF) return false;
+                        if (excludedContacts.has(log.phoneNumber)) return false;
+                        return true;
                     });
 
                     // Group by phone number
@@ -88,6 +103,11 @@ const ReturningCustomersPage = () => {
 
                             const returnDiffDays = Math.floor((returnCall.getTime() - firstCall.getTime()) / (1000 * 60 * 60 * 24));
 
+                            // Sort call history descending for display (newest first)
+                            const callHistory = [...logs].sort((a, b) =>
+                                new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+                            );
+
                             returning.push({
                                 phoneNumber,
                                 contactName: logs[0].contactName || null,
@@ -95,7 +115,8 @@ const ReturningCustomersPage = () => {
                                 returnCallDate: returnCall,
                                 daysBetween: returnDiffDays,
                                 totalCalls: logs.length,
-                                staffName: logs[logs.length - 1].staff?.name || 'Unknown'
+                                staffName: logs[logs.length - 1].staff?.name || 'Unknown',
+                                callHistory
                             });
                         }
                     });
@@ -119,6 +140,14 @@ const ReturningCustomersPage = () => {
             day: 'numeric',
             year: 'numeric'
         });
+    };
+
+    const formatDuration = (duration: string) => {
+        const secs = parseInt(duration);
+        if (secs >= 60) {
+            return `${Math.floor(secs / 60)}m ${secs % 60}s`;
+        }
+        return `${secs}s`;
     };
 
     return (
@@ -220,75 +249,168 @@ const ReturningCustomersPage = () => {
                         No returning customers found with {minDays}+ days gap
                     </div>
                 ) : (
-                    returningCustomers.map((customer, index) => (
-                        <div key={customer.phoneNumber} className="glass-card" style={{ padding: '14px 16px' }}>
-                            {/* Top Row: Name + Days Badge */}
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'flex-start',
-                                marginBottom: '10px'
-                            }}>
-                                <div style={{ flex: 1 }}>
+                    returningCustomers.map((customer) => {
+                        const isExpanded = expandedContact === customer.phoneNumber;
+                        return (
+                            <div key={customer.phoneNumber} className="glass-card" style={{ overflow: 'hidden' }}>
+                                {/* Clickable Header */}
+                                <div
+                                    onClick={() => setExpandedContact(isExpanded ? null : customer.phoneNumber)}
+                                    style={{
+                                        padding: '14px 16px',
+                                        cursor: 'pointer',
+                                        background: isExpanded ? 'rgba(56, 189, 248, 0.05)' : 'transparent'
+                                    }}
+                                >
+                                    {/* Top Row: Name + Days Badge */}
                                     <div style={{
-                                        fontSize: '1rem',
-                                        fontWeight: 600,
-                                        color: '#1a1a1a',
-                                        marginBottom: '2px'
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'flex-start',
+                                        marginBottom: '10px'
                                     }}>
-                                        {customer.contactName || customer.phoneNumber}
-                                    </div>
-                                    {customer.contactName && (
-                                        <div style={{ fontSize: '0.8rem', color: '#38bdf8' }}>
-                                            {customer.phoneNumber}
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{
+                                                fontSize: '1rem',
+                                                fontWeight: 600,
+                                                color: '#1a1a1a',
+                                                marginBottom: '2px'
+                                            }}>
+                                                {customer.contactName || customer.phoneNumber}
+                                            </div>
+                                            {customer.contactName && (
+                                                <div style={{ fontSize: '0.8rem', color: '#38bdf8' }}>
+                                                    {customer.phoneNumber}
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
-                                <div style={{
-                                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-                                    color: 'white',
-                                    padding: '6px 12px',
-                                    borderRadius: '20px',
-                                    fontSize: '0.85rem',
-                                    fontWeight: 700
-                                }}>
-                                    {customer.daysBetween} days
-                                </div>
-                            </div>
+                                        <div style={{
+                                            background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                                            color: 'white',
+                                            padding: '6px 12px',
+                                            borderRadius: '20px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 700
+                                        }}>
+                                            {customer.daysBetween} days
+                                        </div>
+                                    </div>
 
-                            {/* Stats Grid */}
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(3, 1fr)',
-                                gap: '8px',
-                                marginBottom: '8px'
-                            }}>
-                                <div style={{ textAlign: 'center' }}>
-                                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>First Call</div>
-                                    <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#1a1a1a' }}>
-                                        {formatDate(customer.firstCallDate)}
+                                    {/* Stats Grid */}
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: 'repeat(3, 1fr)',
+                                        gap: '8px',
+                                        marginBottom: '8px'
+                                    }}>
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>First Call</div>
+                                            <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#1a1a1a' }}>
+                                                {formatDate(customer.firstCallDate)}
+                                            </div>
+                                        </div>
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Return Call</div>
+                                            <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#22c55e' }}>
+                                                {formatDate(customer.returnCallDate)}
+                                            </div>
+                                        </div>
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Total Calls</div>
+                                            <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#38bdf8' }}>
+                                                {customer.totalCalls}
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                                <div style={{ textAlign: 'center' }}>
-                                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Return Call</div>
-                                    <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#22c55e' }}>
-                                        {formatDate(customer.returnCallDate)}
-                                    </div>
-                                </div>
-                                <div style={{ textAlign: 'center' }}>
-                                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>Total Calls</div>
-                                    <div style={{ fontSize: '0.8rem', fontWeight: 500, color: '#38bdf8' }}>
-                                        {customer.totalCalls}
-                                    </div>
-                                </div>
-                            </div>
 
-                            {/* Staff */}
-                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                                Staff: <span style={{ color: '#1a1a1a', fontWeight: 500 }}>{customer.staffName}</span>
+                                    {/* Staff + Expand indicator */}
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center'
+                                    }}>
+                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                            Staff: <span style={{ color: '#1a1a1a', fontWeight: 500 }}>{customer.staffName}</span>
+                                        </span>
+                                        <span style={{
+                                            fontSize: '0.8rem',
+                                            color: '#38bdf8',
+                                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                            transition: 'transform 0.2s'
+                                        }}>
+                                            ▼
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Expanded Call History */}
+                                {isExpanded && (
+                                    <div style={{
+                                        borderTop: '1px solid var(--card-border)',
+                                        padding: '12px 16px',
+                                        background: 'rgba(0, 0, 0, 0.2)'
+                                    }}>
+                                        <div style={{
+                                            fontSize: '0.8rem',
+                                            color: '#64748b',
+                                            marginBottom: '12px'
+                                        }}>
+                                            Call History ({customer.callHistory.length} calls)
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            {customer.callHistory.map((call) => (
+                                                <div
+                                                    key={call.id}
+                                                    style={{
+                                                        padding: '10px 12px',
+                                                        background: 'rgba(255, 255, 255, 0.02)',
+                                                        borderRadius: '6px',
+                                                        borderLeft: `3px solid ${
+                                                            call.callType === 'OUTGOING' ? '#38bdf8' :
+                                                            call.callType === 'INCOMING' ? '#22c55e' : '#ef4444'
+                                                        }`
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center',
+                                                        flexWrap: 'wrap',
+                                                        gap: '8px'
+                                                    }}>
+                                                        <span style={{
+                                                            padding: '2px 8px',
+                                                            borderRadius: '4px',
+                                                            fontSize: '0.7rem',
+                                                            fontWeight: 600,
+                                                            background: call.callType === 'OUTGOING'
+                                                                ? 'rgba(56, 189, 248, 0.15)'
+                                                                : call.callType === 'INCOMING'
+                                                                    ? 'rgba(34, 197, 94, 0.15)'
+                                                                    : 'rgba(239, 68, 68, 0.15)',
+                                                            color: call.callType === 'OUTGOING'
+                                                                ? '#38bdf8'
+                                                                : call.callType === 'INCOMING'
+                                                                    ? '#22c55e'
+                                                                    : '#ef4444'
+                                                        }}>
+                                                            {call.callType}
+                                                        </span>
+                                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                                            {new Date(call.timestamp).toLocaleString()}
+                                                        </span>
+                                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                                            {formatDuration(call.duration)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
         </div>
