@@ -305,35 +305,47 @@ const CallLogsPage = () => {
                                     No excluded contacts
                                 </p>
                             ) : (
-                                Array.from(excludedContacts).map(phone => (
-                                    <div
-                                        key={phone}
-                                        style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            padding: '10px 12px',
-                                            background: 'rgba(239, 68, 68, 0.1)',
-                                            borderRadius: '8px',
-                                            border: '1px solid rgba(239, 68, 68, 0.3)'
-                                        }}
-                                    >
-                                        <span style={{ color: 'white' }}>{phone}</span>
-                                        <button
-                                            onClick={() => removeExcludedContact(phone)}
+                                Array.from(excludedContacts).map(phone => {
+                                    // Find contact name from rawLogs
+                                    const contactLog = rawLogs.find(log => log.phoneNumber === phone);
+                                    const contactName = contactLog?.contactName;
+                                    return (
+                                        <div
+                                            key={phone}
                                             style={{
-                                                background: 'none',
-                                                border: 'none',
-                                                color: '#22c55e',
-                                                cursor: 'pointer',
-                                                fontSize: '0.85rem',
-                                                fontWeight: 500
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                padding: '10px 12px',
+                                                background: 'rgba(239, 68, 68, 0.1)',
+                                                borderRadius: '8px',
+                                                border: '1px solid rgba(239, 68, 68, 0.3)'
                                             }}
                                         >
-                                            Restore
-                                        </button>
-                                    </div>
-                                ))
+                                            <div>
+                                                {contactName && (
+                                                    <div style={{ color: 'white', fontWeight: 500 }}>{contactName}</div>
+                                                )}
+                                                <div style={{ color: contactName ? '#64748b' : 'white', fontSize: contactName ? '0.8rem' : '1rem' }}>
+                                                    {phone}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => removeExcludedContact(phone)}
+                                                style={{
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    color: '#22c55e',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.85rem',
+                                                    fontWeight: 500
+                                                }}
+                                            >
+                                                Restore
+                                            </button>
+                                        </div>
+                                    );
+                                })
                             )}
                         </div>
                     </div>
