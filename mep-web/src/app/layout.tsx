@@ -47,7 +47,7 @@ export default function RootLayout({
       <body>
         {/* Mobile Header */}
         <div className="mobile-header">
-          <h1 className="gradient-text" style={{ fontSize: '1.25rem' }}>MEP Pro</h1>
+          <h1 className="gradient-text" style={{ fontSize: '1.25rem' }}>Avawke</h1>
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             style={{
@@ -70,7 +70,7 @@ export default function RootLayout({
 
         <div className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-            <h1 className="gradient-text" style={{ fontSize: '1.5rem' }}>MEP Pro</h1>
+            <h1 className="gradient-text" style={{ fontSize: '1.5rem' }}>Avawke</h1>
           </div>
 
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>

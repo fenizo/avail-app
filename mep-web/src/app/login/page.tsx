@@ -52,7 +52,7 @@ export default function LoginPage() {
                 padding: '40px',
                 textAlign: 'center'
             }}>
-                <h1 className="gradient-text" style={{ fontSize: '2.5rem', marginBottom: '8px', fontWeight: 800 }}>MEP Pro</h1>
+                <h1 className="gradient-text" style={{ fontSize: '2.5rem', marginBottom: '8px', fontWeight: 800 }}>Avawke</h1>
                 <p style={{ color: '#94a3b8', marginBottom: '32px' }}>Admin Panel Authentication</p>
 
                 <form onSubmit={handleLogin} style={{ textAlign: 'left' }}>
