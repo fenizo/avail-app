@@ -39,6 +39,7 @@ class SecurityConfig(private val jwtAuthFilter: JwtAuthFilter) {
                     .requestMatchers(AntPathRequestMatcher("/api/call-logs/**")).permitAll()
                     .requestMatchers(AntPathRequestMatcher("/api/excluded-contacts")).permitAll()
                     .requestMatchers(AntPathRequestMatcher("/api/excluded-contacts/**")).permitAll()
+                    .requestMatchers(AntPathRequestMatcher("/api/heartbeat/status")).permitAll()
                     .anyRequest().authenticated()
             }
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
@@ -54,7 +55,8 @@ class SecurityConfig(private val jwtAuthFilter: JwtAuthFilter) {
                 AntPathRequestMatcher("/api/call-logs/**"),
                 AntPathRequestMatcher("/api/call-logs/ping"),
                 AntPathRequestMatcher("/api/excluded-contacts"),
-                AntPathRequestMatcher("/api/excluded-contacts/**")
+                AntPathRequestMatcher("/api/excluded-contacts/**"),
+                AntPathRequestMatcher("/api/heartbeat/status")
             )
         }
     }
