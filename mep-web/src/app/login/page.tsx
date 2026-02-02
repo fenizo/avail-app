@@ -106,9 +106,6 @@ export default function LoginPage() {
                         {loading ? 'Authenticating...' : 'Sign In'}
                     </button>
 
-                    <p style={{ color: '#475569', fontSize: '0.75rem', marginTop: '24px', textAlign: 'center' }}>
-                        Demo Admin: 9999999999 / 10006
-                    </p>
                 </form>
             </div>
         </div>
