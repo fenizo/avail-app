@@ -27,7 +27,12 @@ interface MepApiService {
 
     @GET("api/settings/sync-interval")
     suspend fun getSyncInterval(): SyncIntervalResponse
+
+    @POST("api/heartbeat")
+    suspend fun sendHeartbeat(): HeartbeatResponse
 }
+
+data class HeartbeatResponse(val status: String, val timestamp: Long)
 
 data class SyncIntervalResponse(val value: String)
 

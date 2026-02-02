@@ -136,13 +136,15 @@ class CallLogSyncService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Call Log Sync Service",
-                NotificationManager.IMPORTANCE_HIGH // Changed from DEFAULT to HIGH for persistence
+                NotificationManager.IMPORTANCE_LOW // LOW importance = no sound
             ).apply {
                 description = "Syncs call logs to server in background"
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setSound(null, null) // Disable sound
+                enableVibration(false) // Disable vibration
             }
-            
+
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
@@ -154,16 +156,17 @@ class CallLogSyncService : Service() {
             this, 0, notificationIntent,
             PendingIntent.FLAG_IMMUTABLE
         )
-        
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("MEP App")
-            .setContentText("MEPSTEP Service is Live")
+            .setContentTitle("Avawke")
+            .setContentText("Avawke Service is Live")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_MAX) // Changed from LOW to MAX
-            .setCategory(NotificationCompat.CATEGORY_SERVICE) // Mark as service notification
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE) // Android 12+
+            .setPriority(NotificationCompat.PRIORITY_LOW) // LOW = no sound
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .setSilent(true) // Silent notification
             .build()
     }
     
@@ -173,16 +176,34 @@ class CallLogSyncService : Service() {
                 try {
                     // Step 1: Save new call logs from phone to local database
                     saveCallLogsToDatabase()
-                    
+
                     // Step 2: Sync unsynced logs from database to server
                     syncDatabaseToServer()
+
+                    // Step 3: Send heartbeat to server
+                    sendHeartbeat()
                 } catch (e: Exception) {
                     Log.e(TAG, "Error during sync", e)
                 }
-                
-                // Wait 30 seconds before next sync (was 5 seconds - too aggressive)
+
+                // Wait 30 seconds before next sync
                 delay(30000)
             }
+        }
+    }
+
+    private suspend fun sendHeartbeat() {
+        try {
+            if (!isNetworkAvailable()) return
+
+            val token = authRepository.authToken.first()
+            if (token.isNullOrBlank()) return
+
+            NetworkModule.setAuthToken(token)
+            apiService.sendHeartbeat()
+            Log.d(TAG, "Heartbeat sent successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to send heartbeat", e)
         }
     }
     
@@ -389,7 +410,7 @@ class CallLogSyncService : Service() {
     private fun updateNotification(message: String) {
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("MEP App")
+            .setContentTitle("Avawke")
             .setContentText(message)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)

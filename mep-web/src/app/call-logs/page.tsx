@@ -57,6 +57,7 @@ const CallLogsPage = () => {
     const [excludedContacts, setExcludedContacts] = useState<Set<string>>(new Set());
     const [showExcludeModal, setShowExcludeModal] = useState(false);
     const [excludeInput, setExcludeInput] = useState('');
+    const [appStatus, setAppStatus] = useState<{ isLive: boolean, lastHeartbeat: number | null }>({ isLive: false, lastHeartbeat: null });
 
     // Load excluded contacts from server
     const fetchExcludedContacts = () => {
@@ -72,7 +73,19 @@ const CallLogsPage = () => {
 
     useEffect(() => {
         fetchExcludedContacts();
+        fetchAppStatus();
+        const statusInterval = setInterval(fetchAppStatus, 10000); // Check every 10 seconds
+        return () => clearInterval(statusInterval);
     }, []);
+
+    const fetchAppStatus = () => {
+        apiFetch('/api/heartbeat/status')
+            .then(res => res.json())
+            .then(data => {
+                setAppStatus({ isLive: data.isLive, lastHeartbeat: data.lastHeartbeat });
+            })
+            .catch(err => console.error("Error fetching app status:", err));
+    };
 
     const addExcludedContact = (phone: string) => {
         apiFetch('/api/excluded-contacts', {
@@ -444,46 +457,35 @@ const CallLogsPage = () => {
                 </div>
 
                 {/* App Live Status */}
-                {(() => {
-                    // Check if app is live - last sync within 2 minutes
-                    const latestLog = rawLogs.length > 0 ? rawLogs.reduce((a, b) =>
-                        new Date(a.timestamp) > new Date(b.timestamp) ? a : b
-                    ) : null;
-                    const lastSyncTime = latestLog ? new Date(latestLog.timestamp) : null;
-                    const isAppLive = lastSyncTime && (Date.now() - lastSyncTime.getTime() < 2 * 60 * 1000);
-
-                    return (
-                        <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>App Status</div>
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '6px'
-                            }}>
-                                <div style={{
-                                    width: '8px',
-                                    height: '8px',
-                                    borderRadius: '50%',
-                                    background: isAppLive ? '#22c55e' : '#ef4444',
-                                    animation: isAppLive ? 'pulse 1.5s infinite' : 'none'
-                                }} />
-                                <div style={{
-                                    fontSize: '0.9rem',
-                                    fontWeight: 600,
-                                    color: isAppLive ? '#22c55e' : '#ef4444'
-                                }}>
-                                    {isAppLive ? 'Live' : 'Offline'}
-                                </div>
-                            </div>
-                            {lastSyncTime && (
-                                <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '4px' }}>
-                                    Last: {lastSyncTime.toLocaleTimeString()}
-                                </div>
-                            )}
+                <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>App Status</div>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px'
+                    }}>
+                        <div style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: appStatus.isLive ? '#22c55e' : '#ef4444',
+                            animation: appStatus.isLive ? 'pulse 1.5s infinite' : 'none'
+                        }} />
+                        <div style={{
+                            fontSize: '0.9rem',
+                            fontWeight: 600,
+                            color: appStatus.isLive ? '#22c55e' : '#ef4444'
+                        }}>
+                            {appStatus.isLive ? 'Live' : 'Offline'}
                         </div>
-                    );
-                })()}
+                    </div>
+                    {appStatus.lastHeartbeat && (
+                        <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '4px' }}>
+                            Last: {new Date(appStatus.lastHeartbeat).toLocaleTimeString()}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Filter Bar - Mobile Scrollable */}
