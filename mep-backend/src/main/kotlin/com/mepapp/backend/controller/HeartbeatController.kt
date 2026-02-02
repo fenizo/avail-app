@@ -1,5 +1,6 @@
 package com.mepapp.backend.controller
 
+import com.mepapp.backend.entity.Role
 import com.mepapp.backend.repository.UserRepository
 import com.mepapp.backend.security.JwtUtils
 import org.springframework.web.bind.annotation.*
@@ -24,8 +25,8 @@ class HeartbeatController(
 
     companion object {
         // Store last heartbeat time per staff ID (in-memory for simplicity)
-        // Key: staffId, Value: Pair(lastHeartbeat, staffName)
-        private val heartbeats = ConcurrentHashMap<String, Pair<Long, String>>()
+        // Key: staffId, Value: lastHeartbeat timestamp
+        private val heartbeats = ConcurrentHashMap<String, Long>()
     }
 
     @PostMapping
@@ -39,7 +40,7 @@ class HeartbeatController(
             val user = userRepository.findByPhone(phone)
 
             if (user != null) {
-                heartbeats[user.id.toString()] = Pair(timestamp, user.name)
+                heartbeats[user.id.toString()] = timestamp
             }
         } catch (e: Exception) {
             // If token parsing fails, still accept heartbeat
@@ -53,15 +54,21 @@ class HeartbeatController(
         val currentTime = Instant.now().toEpochMilli()
         val twoMinutesAgo = currentTime - 120000
 
-        val userStatuses = heartbeats.map { (staffId, data) ->
-            val (lastHeartbeat, staffName) = data
+        // Get all STAFF users from database
+        val staffUsers = userRepository.findByRole(Role.STAFF)
+
+        val userStatuses = staffUsers.map { user ->
+            val staffId = user.id.toString()
+            val lastHeartbeat = heartbeats[staffId]
+            val isLive = lastHeartbeat != null && lastHeartbeat > twoMinutesAgo
+
             UserStatusResponse(
                 staffId = staffId,
-                staffName = staffName,
-                isLive = lastHeartbeat > twoMinutesAgo,
+                staffName = user.name,
+                isLive = isLive,
                 lastHeartbeat = lastHeartbeat
             )
-        }.sortedByDescending { it.lastHeartbeat }
+        }.sortedByDescending { it.lastHeartbeat ?: 0L }
 
         return AllStatusResponse(userStatuses)
     }
