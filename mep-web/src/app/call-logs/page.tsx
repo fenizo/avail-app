@@ -57,7 +57,7 @@ const CallLogsPage = () => {
     const [excludedContacts, setExcludedContacts] = useState<Set<string>>(new Set());
     const [showExcludeModal, setShowExcludeModal] = useState(false);
     const [excludeInput, setExcludeInput] = useState('');
-    const [appStatus, setAppStatus] = useState<{ isLive: boolean, lastHeartbeat: number | null }>({ isLive: false, lastHeartbeat: null });
+    const [userStatuses, setUserStatuses] = useState<{ staffId: string, staffName: string, isLive: boolean, lastHeartbeat: number | null }[]>([]);
 
     // Load excluded contacts from server
     const fetchExcludedContacts = () => {
@@ -73,18 +73,20 @@ const CallLogsPage = () => {
 
     useEffect(() => {
         fetchExcludedContacts();
-        fetchAppStatus();
-        const statusInterval = setInterval(fetchAppStatus, 10000); // Check every 10 seconds
+        fetchUserStatuses();
+        const statusInterval = setInterval(fetchUserStatuses, 10000); // Check every 10 seconds
         return () => clearInterval(statusInterval);
     }, []);
 
-    const fetchAppStatus = () => {
+    const fetchUserStatuses = () => {
         apiFetch('/api/heartbeat/status')
             .then(res => res.json())
             .then(data => {
-                setAppStatus({ isLive: data.isLive, lastHeartbeat: data.lastHeartbeat });
+                if (data.users && Array.isArray(data.users)) {
+                    setUserStatuses(data.users);
+                }
             })
-            .catch(err => console.error("Error fetching app status:", err));
+            .catch(err => console.error("Error fetching user statuses:", err));
     };
 
     const addExcludedContact = (phone: string) => {
@@ -456,33 +458,49 @@ const CallLogsPage = () => {
                     <div style={{ fontSize: '2rem', fontWeight: 700, color: '#38bdf8' }}>{displayLogs.length}</div>
                 </div>
 
-                {/* App Live Status */}
-                <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>App Status</div>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
-                    }}>
-                        <div style={{
-                            width: '8px',
-                            height: '8px',
-                            borderRadius: '50%',
-                            background: appStatus.isLive ? '#22c55e' : '#ef4444',
-                            animation: appStatus.isLive ? 'pulse 1.5s infinite' : 'none'
-                        }} />
-                        <div style={{
-                            fontSize: '0.9rem',
-                            fontWeight: 600,
-                            color: appStatus.isLive ? '#22c55e' : '#ef4444'
-                        }}>
-                            {appStatus.isLive ? 'Live' : 'Offline'}
-                        </div>
-                    </div>
-                    {appStatus.lastHeartbeat && (
-                        <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '4px' }}>
-                            Last: {new Date(appStatus.lastHeartbeat).toLocaleTimeString()}
+                {/* User App Status - Per User */}
+                <div className="glass-card" style={{ padding: '16px', gridColumn: 'span 2' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '8px', fontWeight: 500 }}>Staff App Status</div>
+                    {userStatuses.length === 0 ? (
+                        <div style={{ fontSize: '0.8rem', color: '#64748b', textAlign: 'center' }}>No active users</div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {userStatuses.map((user) => (
+                                <div key={user.staffId} style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '8px 12px',
+                                    background: user.isLive ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                    borderRadius: '8px',
+                                    border: `1px solid ${user.isLive ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div style={{
+                                            width: '8px',
+                                            height: '8px',
+                                            borderRadius: '50%',
+                                            background: user.isLive ? '#22c55e' : '#ef4444',
+                                            animation: user.isLive ? 'pulse 1.5s infinite' : 'none'
+                                        }} />
+                                        <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{user.staffName}</span>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div style={{
+                                            fontSize: '0.75rem',
+                                            fontWeight: 600,
+                                            color: user.isLive ? '#22c55e' : '#ef4444'
+                                        }}>
+                                            {user.isLive ? 'Live' : 'Offline'}
+                                        </div>
+                                        {user.lastHeartbeat && (
+                                            <div style={{ fontSize: '0.65rem', color: '#64748b' }}>
+                                                {new Date(user.lastHeartbeat).toLocaleTimeString()}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>
