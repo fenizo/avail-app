@@ -22,11 +22,11 @@ class DataInitializer(
             val admin = User(
                 name = "Admin User",
                 phone = "9999999999",
-                passwordHash = passwordEncoder.encode("1234"),
+                passwordHash = passwordEncoder.encode("10006"),
                 role = Role.ADMIN
             )
             userRepository.save(admin)
-            println("Seeded Admin user: 9999999999 / 1234")
+            println("Seeded Admin user: 9999999999 / 10006")
         }
 
         // Create Staff if not exists
