@@ -26,7 +26,7 @@ export default function LoginPage() {
                 const data = await res.json();
                 localStorage.setItem('token', data.token);
                 localStorage.setItem('userRole', data.role);
-                router.push('/');
+                router.push('/call-logs');
             } else {
                 setError('Invalid credentials or unauthorized access.');
             }

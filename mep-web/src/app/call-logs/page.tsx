@@ -443,13 +443,47 @@ const CallLogsPage = () => {
                     <div style={{ fontSize: '2rem', fontWeight: 700, color: '#38bdf8' }}>{displayLogs.length}</div>
                 </div>
 
-                {/* Sync Status */}
-                <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>Status</div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 600, color: loading ? '#38bdf8' : '#22c55e' }}>
-                        {loading ? 'Syncing...' : 'Live'}
-                    </div>
-                </div>
+                {/* App Live Status */}
+                {(() => {
+                    // Check if app is live - last sync within 2 minutes
+                    const latestLog = rawLogs.length > 0 ? rawLogs.reduce((a, b) =>
+                        new Date(a.timestamp) > new Date(b.timestamp) ? a : b
+                    ) : null;
+                    const lastSyncTime = latestLog ? new Date(latestLog.timestamp) : null;
+                    const isAppLive = lastSyncTime && (Date.now() - lastSyncTime.getTime() < 2 * 60 * 1000);
+
+                    return (
+                        <div className="glass-card" style={{ padding: '16px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '4px' }}>App Status</div>
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px'
+                            }}>
+                                <div style={{
+                                    width: '8px',
+                                    height: '8px',
+                                    borderRadius: '50%',
+                                    background: isAppLive ? '#22c55e' : '#ef4444',
+                                    animation: isAppLive ? 'pulse 1.5s infinite' : 'none'
+                                }} />
+                                <div style={{
+                                    fontSize: '0.9rem',
+                                    fontWeight: 600,
+                                    color: isAppLive ? '#22c55e' : '#ef4444'
+                                }}>
+                                    {isAppLive ? 'Live' : 'Offline'}
+                                </div>
+                            </div>
+                            {lastSyncTime && (
+                                <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '4px' }}>
+                                    Last: {lastSyncTime.toLocaleTimeString()}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
             </div>
 
             {/* Filter Bar - Mobile Scrollable */}
