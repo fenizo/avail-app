@@ -7,7 +7,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object NetworkModule {
-    private const val BASE_URL = "https://staging.maduraielectriciansandplumbers.com/"
+    private const val BASE_URL = "https://call.maduraielectriciansandplumbers.com/"
 
     private var authToken: String? = null
 
